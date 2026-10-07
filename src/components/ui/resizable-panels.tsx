@@ -53,6 +53,8 @@ const round = (v: number) => Math.round(v * 100) / 100;
 
 export type PanelGroupProps = Omit<React.ComponentProps<"div">, "dir"> & {
   direction?: Direction;
+  /** Controlled normalized percentages. External undo/redo updates do not emit onLayout. */
+  value?: number[];
   /** Called with every panel's size, in percent, whenever a resize settles. Persist it to restore the layout. */
   onLayout?: (sizes: number[]) => void;
 };
@@ -61,7 +63,7 @@ export type PanelGroupProps = Omit<React.ComponentProps<"div">, "dir"> & {
  * Split panes. Sizes are percentages of the group, so the layout survives a window resize;
  * handles between panels drag, step with arrow keys, and double-click to collapse.
  */
-export function PanelGroup({ direction = "horizontal", onLayout, className, children, ...rest }: PanelGroupProps) {
+export function PanelGroup({ direction = "horizontal", value, onLayout, className, children, ...rest }: PanelGroupProps) {
   const reduce = !!useReducedMotion();
   const uid = useId();
   const kids = Children.toArray(children).filter(isValidElement);
@@ -82,6 +84,13 @@ export function PanelGroup({ direction = "horizontal", onLayout, className, chil
   const restore = useRef<number[]>(panelProps.map((p, i) => p.defaultSize ?? initial[i]));
   const last = useRef<number[]>(initial);
   const pointer = useRef<{ handle: number; start: number; a: number; b: number; px: number; id: number; moved: boolean } | null>(null);
+  useEffect(() => {
+    if (!value || value.length !== mvs.length || dragging !== null || value.some((size) => !Number.isFinite(size))) return;
+    const next = value.map(round);
+    if (next.every((size, index) => Math.abs(size - mvs[index].get()) < .01)) return;
+    next.forEach((size, index) => mvs[index].jump(size));
+    last.current = next; setSizes(next);
+  }, [value?.join(",")]);
 
   const defs: PanelDef[] = panelProps.map((p, i) => ({
     id: p.id ?? `${uid}-p${i}`,

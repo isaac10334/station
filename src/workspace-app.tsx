@@ -1,3 +1,4 @@
+import { WidgetBrowser } from "./widget-browser";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Box, Command, Folder, LayoutGrid, PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Plus, Search, Settings2, Undo2, Redo2, X } from "lucide-react";
 import { demoSession, deps } from "./composition";
@@ -34,23 +35,9 @@ function useStore(): State {
   return state;
 }
 
-/** Catalog uses the same drag coordinator as placed panel tabs. */
 function WidgetCatalog() {
-  const [open, setOpen] = useState(false);
-  const { active } = useDockController();
-  return <Popover open={open || active?.kind === "widget"} onOpenChange={(value) => { if (!active) setOpen(value); }}>
-    <PopoverTrigger variant="ghost" className="widget-catalog-trigger" title="Add widgets" aria-label="Add widgets"><LayoutGrid size={17} /><Plus size={12} /></PopoverTrigger>
-    <PopoverContent side="bottom" align="end" size="auto" arrow={false} className="widget-catalog-popover">
-      <div className="widget-catalog-heading"><strong>Widgets</strong><span>Drag a tile into the dashboard or a dock.</span></div>
-      <div className="widget-library-grid">{WIDGET_IDS.map((id) => {
-        const item = WIDGET_CATALOG[id], Icon = item.icon;
-        return <div className="widget-library-tile" key={id}>
-          <DockCatalogItem widget={id} title={item.title}><Icon size={20} /><strong>{item.title}</strong><small>{item.description}</small></DockCatalogItem>
-        </div>;
-      })}</div>
-      <p className="widget-catalog-hint">While dragging: hold Alt to join tabs, or Shift to split a dock.</p>
-    </PopoverContent>
-  </Popover>;
+  const { openCatalog } = useDockController();
+  return <button className="icon-button" aria-label="Add widgets" title="Add widgets" onClick={() => openCatalog({ surface: "dashboard", intent: "append" })}><LayoutGrid size={17} /><Plus size={12} /></button>;
 }
 
 type Overlay = null | { kind: "create"; target: "component" | "web-content" | "workspace" } | { kind: "rename"; unitId: string } | { kind: "restore"; unitId: string } | { kind: "delete"; unitIds: string[]; workspaceId: string } | { kind: "settings" };
@@ -184,7 +171,7 @@ export function WorkspaceApp() {
   };
   function renderPanel(panel: DockPanel) {
     if (panel.kind === "navigation") return <Sidebar className="app-sidebar" value="overview" aria-label="Workspace navigation">
-      <SidebarHeader><WorkspaceSwitcher shortcut="alt" workspaces={state.workspaces.map((item) => ({ id: item.id, name: item.name, plan: "Local workspace", detail: `${item.units.length} units` }))} value={workspace.id} onValueChange={store.selectWorkspace} onCreate={(name) => name.trim() ? store.createWorkspace(name.trim()) : showOverlay({ kind: "create", target: "workspace" })} /></SidebarHeader>
+      <SidebarHeader><span className="station-brand">Station</span><WorkspaceSwitcher shortcut="alt" workspaces={state.workspaces.map((item) => ({ id: item.id, name: item.name, plan: "Local workspace", detail: `${item.units.length} units` }))} value={workspace.id} onValueChange={store.selectWorkspace} onCreate={(name) => name.trim() ? store.createWorkspace(name.trim()) : showOverlay({ kind: "create", target: "workspace" })} /></SidebarHeader>
       <SidebarContent aria-label="Workspace navigation"><SidebarGroup label="Workspace" collapsible><SidebarItem value="overview" icon={<LayoutGrid />} onClick={() => command({ type: "activate", panelId: HOME_ID })}>Overview</SidebarItem></SidebarGroup></SidebarContent>
       <SidebarFooter className="workspace-sidebar-footer"><SidebarItem value="settings" icon={<Settings2 />} onClick={() => showOverlay({ kind: "settings" })}>Settings</SidebarItem></SidebarFooter>
     </Sidebar>;
@@ -204,10 +191,10 @@ export function WorkspaceApp() {
   const sidebarHasPanels = surfacePanels(workspace.dock, "sidebar").length > 0;
   const bottomHasPanels = surfacePanels(workspace.dock, "bottom").length > 0 || narrow && sidebarHasPanels;
   useEffect(() => { if (narrow && sidebarHasPanels) setBottomOpen(true); }, [narrow, sidebarHasPanels]);
-  return <DockHost layout={workspace.dock} onCommand={command} renderPanel={renderPanel}
+  return <DockHost key={workspace.id} layout={workspace.dock} onCommand={command} renderPanel={renderPanel}
     debugDropZones={new URLSearchParams(location.search).has("debugDropZones")}
     debugLayout={new URLSearchParams(location.search).has("debugLayout")}>
-    <div className={`app density-${state.app.density} ${sidebarHasPanels ? "has-sidebar-dock" : ""}`} data-sidebar-side={workspace.dock.sidebarSide} data-sidebar-hidden={workspace.dock.hidden.sidebar || undefined}>
+    <WidgetBrowser workspace={workspace} /><div className={`app density-${state.app.density} ${sidebarHasPanels ? "has-sidebar-dock" : ""}`} data-sidebar-side={workspace.dock.sidebarSide} data-sidebar-hidden={workspace.dock.hidden.sidebar || undefined}>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} groups={[{ heading: "Navigate", items: [
         { id: "overview", label: "Open overview", icon: <LayoutGrid size={16} />, onSelect: () => command({ type: "activate", panelId: "workspace-home" }) },
         { id: "browser", label: "Toggle unit browser", icon: <Box size={16} />, shortcut: "shift+w", onSelect: toggleBrowser },

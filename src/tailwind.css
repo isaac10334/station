@@ -175,7 +175,7 @@
 .app .dock-stack-dashboard .dock-stack-body { overflow: visible; }
 .app .dock-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; position: relative; }
 .app .dock-grid-cell { position: relative; min-width: 0; }
-.app .dock-grid-cell:has(.dash-widget-wide) { grid-column: 1 / -1; }
+.app .dock-grid-cell:has(.dash-widget-wide) { grid-column: auto; }
 .app .dock-grid-cell .dash-widget { height: 100%; }
 .app .dock-grid-cell .dock-stack-body { height: 100%; }
 .app .dock-surface-sidebar .dash-widget, .app .dock-surface-bottom .dash-widget { border: 0; border-radius: 0; box-shadow: none; height: 100%; overflow: auto; }

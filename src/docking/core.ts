@@ -97,6 +97,11 @@ export function descendants(layout: DockLayout, ownerId: string): string[] {
   });
   collect(ownerId); return ids;
 }
+/** Policy surface for nested children, including children of a floating Layout. */
+export function hostSurface(layout: DockLayout, panelId: string): Surface | null {
+  return panelSurface(layout, panelId) ?? layout.floating[panelId]?.returnTo
+    ?? Object.entries(layout.floating).find(([id]) => descendants(layout, id).includes(panelId))?.[1].returnTo ?? null;
+}
 const targetRoot = (layout: DockLayout, target: Target) => target.ownerId ? layout.containers[target.ownerId] : layout.surfaces[target.surface];
 function mapRoots(layout: DockLayout, fn: (node: Node | null) => Node | null): DockLayout {
   return { ...layout, surfaces: Object.fromEntries(Object.entries(layout.surfaces).map(([key, node]) => [key, fn(node)])) as DockLayout["surfaces"],
@@ -113,7 +118,7 @@ export function panelSlot(layout: DockLayout, panelId: string): { node: Stack; t
     if (node.kind === "stack" && node.tabs.includes(panelId)) result = { node, target: { surface, ownerId, nodeId: node.id, intent: "tab" } };
   });
   for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const) scan(layout.surfaces[surface], surface);
-  for (const [ownerId, root] of Object.entries(layout.containers)) scan(root, panelSurface(layout, ownerId) ?? layout.floating[ownerId]?.returnTo ?? "dashboard", ownerId);
+  for (const [ownerId, root] of Object.entries(layout.containers)) scan(root, hostSurface(layout, ownerId) ?? "dashboard", ownerId);
   return result;
 }
 export const HOME_ID = "workspace-home";
@@ -167,7 +172,7 @@ export function leafStacks(node: Node | null): number {
 
 /** Host-owned placement policy. A rejected target provides a readable reason for UI/debugging. */
 export function placementReason(panel: Panel, target: Target, policy: DockPolicy = DEFAULT_DOCK_POLICY): string | null {
-  const surface = policy[target.surface];
+  const surface = target.ownerId ? policy.dashboard : policy[target.surface];
   if (!surface) return "Unknown surface";
   if (panel.kind === "browser" && !["sidebar", "bottom"].includes(target.surface)) return "Unit browser belongs in a dock";
   if (!surface.intents.includes(target.intent)) return `${target.surface} does not allow ${target.intent} placement`;
@@ -232,7 +237,9 @@ export function dropReason(layout: DockLayout, panel: Panel, target: Target, pol
   if (reason) return reason;
   if (target.ownerId && (target.ownerId === panel.id || descendants(layout, panel.id).includes(target.ownerId))) return "A Layout cannot contain itself or an ancestor";
   if (target.ownerId && ["home", "navigation", "browser"].includes(panel.kind)) return "Required host widgets cannot enter a Layout";
-  if (target.ownerId && panelSurface(layout, target.ownerId) !== target.surface && !layout.floating[target.ownerId]) return "Container surface changed";
+  if (target.ownerId && hostSurface(layout, target.ownerId) !== target.surface) return "Container surface changed";
+  const sourceSlot = panelSlot(layout, panel.id);
+  if (target.nodeId && sourceSlot?.node.id === target.nodeId && sourceSlot.node.tabs.length === 1) return "Cannot drop onto the panel being moved";
   if (target.intent === "swap") {
     const destination = target.nodeId ? findNode(layout, target.nodeId) : null;
     const source = panelSlot(layout, panel.id);
@@ -243,18 +250,19 @@ export function dropReason(layout: DockLayout, panel: Panel, target: Target, pol
     return placementReason(other, { ...source.target, intent: "tab" }, policy);
   }
   const current = panelSurface(layout, panel.id);
-  const leaves = leafStacks(layout.surfaces[target.surface]);
+  const leaves = leafStacks(targetRoot(layout, target));
   if (target.surface === "dashboard" && target.intent === "append" && leaves >= policy.dashboard.maxLeafStacks) {
     let freesLeaf = false;
     visitNode(layout.surfaces.dashboard, (node) => { if (node.kind === "stack" && node.tabs.length === 1 && node.tabs[0] === panel.id) freesLeaf = true; });
     if (!freesLeaf) return `dashboard allows at most ${policy.dashboard.maxLeafStacks} widget slots`;
   }
-  const splits = target.surface !== "dashboard" && (!["append", "tab"].includes(target.intent) || target.intent === "append" && leaves > 0 && layout.surfaces[target.surface]?.kind !== "stack" && !target.nodeId);
-  if (splits && !policy[target.surface].split) return `${target.surface} cannot split`;
-  if (splits && leaves >= policy[target.surface].maxLeafStacks && current !== target.surface) return `${target.surface} allows at most ${policy[target.surface].maxLeafStacks} stacks`;
-  if (splits && leaves >= policy[target.surface].maxLeafStacks && current === target.surface) {
+  const targetPolicy = target.ownerId ? policy.dashboard : policy[target.surface];
+  const splits = !["append", "tab", "swap"].includes(target.intent) || target.intent === "append" && target.surface !== "dashboard" && leaves > 0 && targetRoot(layout, target)?.kind !== "stack" && !target.nodeId;
+  if (splits && !targetPolicy.split) return `${target.surface} cannot split`;
+  if (splits && leaves >= targetPolicy.maxLeafStacks && current !== target.surface) return `${target.surface} allows at most ${targetPolicy.maxLeafStacks} stacks`;
+  if (splits && leaves >= targetPolicy.maxLeafStacks && current === target.surface) {
     const source = Object.values(layout.surfaces).some((root) => { let single = false; visitNode(root, (node) => { if (node.kind === "stack" && node.tabs.length === 1 && node.tabs[0] === panel.id) single = true; }); return single; });
-    if (!source) return `${target.surface} allows at most ${policy[target.surface].maxLeafStacks} stacks`;
+    if (!source) return `${target.surface} allows at most ${targetPolicy.maxLeafStacks} stacks`;
   }
   if (target.nodeId && panelSurface(layout, panel.id)) {
     let remains = false;
@@ -265,7 +273,7 @@ export function dropReason(layout: DockLayout, panel: Panel, target: Target, pol
 }
 
 /** Atomic validated command; rejection returns the original layout reference. */
-export function reduceDock(layout: DockLayout, command: Command, policy: DockPolicy = DEFAULT_DOCK_POLICY): Result {
+function reduceDockCommand(layout: DockLayout, command: Command, policy: DockPolicy = DEFAULT_DOCK_POLICY): Result {
   const reject = (reason: string): Result => ({ ok: false, layout, reason });
   if (command.type === "splitSlot") {
     const node = findNode(layout, command.nodeId);
@@ -273,7 +281,7 @@ export function reduceDock(layout: DockLayout, command: Command, policy: DockPol
     const slotTarget = node.tabs[0] ? panelSlot(layout, node.tabs[0])?.target : rootLocation(layout, node.id);
     if (!slotTarget || !policy[slotTarget.surface].split && !slotTarget.ownerId) return reject("This surface cannot split");
     const root = targetRoot(layout, slotTarget);
-    if (leafStacks(root) >= policy[slotTarget.surface].maxLeafStacks) return reject("Slot limit reached");
+    if (leafStacks(root) >= (slotTarget.ownerId ? policy.dashboard : policy[slotTarget.surface]).maxLeafStacks) return reject("Slot limit reached");
     return { ok: true, layout: mapRoots(layout, (root) => rewrite(root, (item) => item.id === node.id
       ? { kind: "split", id: uid("split"), axis: command.axis, ratio: .5, first: { ...node, keepEmpty: true }, second: emptySlot() } : item)) };
   }
@@ -281,7 +289,7 @@ export function reduceDock(layout: DockLayout, command: Command, policy: DockPol
     const target: Target = { surface: command.surface, ownerId: command.ownerId, intent: "append" };
     if (command.surface !== "dashboard" && !command.ownerId) return reject("Add slots on the dashboard or in a Layout");
     const root = targetRoot(layout, target);
-    if (!root || leafStacks(root) >= policy[command.surface].maxLeafStacks) return reject("Container missing or slot limit reached");
+    if (!root || leafStacks(root) >= (command.ownerId ? policy.dashboard : policy[command.surface]).maxLeafStacks) return reject("Container missing or slot limit reached");
     const node: Node = root.kind === "grid" ? { ...root, cells: [...root.cells, { id: uid("cell"), node: emptySlot() }] }
       : { kind: "split", id: uid("split"), axis: "horizontal", ratio: .5, first: root, second: emptySlot() };
     return { ok: true, layout: setTargetRoot(layout, target, node) };
@@ -305,8 +313,8 @@ export function reduceDock(layout: DockLayout, command: Command, policy: DockPol
   }
   if (command.type === "float") {
     const panel = layout.panels[command.panelId];
-    const from = panelSurface(layout, command.panelId);
-    if (!panel || !from || panel.kind !== "widget" || !WIDGET_PLACEMENT[panel.widget].floating) return reject("This panel cannot float");
+    const from = hostSurface(layout, command.panelId);
+    if (!panel || !from || ["home", "browser", "navigation"].includes(panel.kind) || panel.kind === "widget" && !WIDGET_PLACEMENT[panel.widget].floating) return reject("This panel cannot float");
     return { ok: true, layout: { ...mapRoots(layout, (root) => without(root, panel.id)), floating: { ...layout.floating, [panel.id]: { x: Math.max(0, command.x ?? 80), y: Math.max(0, command.y ?? 80), width: 420, height: 360, returnTo: from } } }, panelId: panel.id };
   }
   if (command.type === "dockFloat") {
@@ -342,7 +350,7 @@ export function reduceDock(layout: DockLayout, command: Command, policy: DockPol
       ? { ...node, ratio: Math.round(Math.max(.2, Math.min(.8, command.ratio)) * 10000) / 10000 } : node)) };
   }
   if (command.type === "activate") {
-    if (!panelSurface(layout, command.panelId)) return reject("Panel is not placed");
+    if (!panelSlot(layout, command.panelId) && !layout.floating[command.panelId]) return reject("Panel is not placed");
     return { ok: true, layout: mapRoots(layout, (root) => rewrite(root, (node) => node.kind === "stack" && node.tabs.includes(command.panelId)
       ? { ...node, active: command.panelId } : node)) };
   }
@@ -422,10 +430,59 @@ export function reduceDock(layout: DockLayout, command: Command, policy: DockPol
   return panelSlot(next, panel.id) ? { ok: true, layout: next, panelId: panel.id } : reject("Insertion failed");
 }
 
+/** Validate the complete ownership graph, not only the destination of a move. */
+export function validateDock(layout: DockLayout, policy: DockPolicy = DEFAULT_DOCK_POLICY): string | null {
+  const seen = new Set<string>(), nodes = new Set<string>(), owners = new Set<string>();
+  let reason: string | null = null;
+  const instance = (id: string, surface: Surface, ownerId?: string, depth = 0) => {
+    if (reason) return;
+    const panel = layout.panels[id];
+    if (!panel || seen.has(id)) { reason = "Each widget instance must have exactly one placement"; return; }
+    if (ownerId && ["home", "navigation", "browser"].includes(panel.kind)) { reason = "Required host widgets cannot enter a Layout"; return; }
+    reason = placementReason(panel, { surface, ownerId, intent: "tab" }, policy);
+    if (reason) return;
+    seen.add(id);
+    if (panel.kind === "widget" && panel.widget === "stack") {
+      if (!layout.containers[id]) { reason = "Layout is missing its owned subtree"; return; }
+      owners.add(id); tree(layout.containers[id], surface, id, depth + 1);
+    }
+  };
+  const tree = (node: Node | null, surface: Surface, ownerId?: string, depth = 0) => {
+    if (!node || reason) return;
+    if (depth > 32 || nodes.has(node.id)) { reason = "Layout contains a cycle, duplicate node, or excessive nesting"; return; }
+    nodes.add(node.id);
+    if (node.kind === "stack") {
+      if (node.tabs.length && !node.tabs.includes(node.active) || !node.tabs.length && node.active !== "") { reason = "Active tab must belong to its slot"; return; }
+      node.tabs.forEach((id) => instance(id, surface, ownerId, depth));
+    } else if (node.kind === "split") {
+      if (!Number.isFinite(node.ratio) || node.ratio < .2 || node.ratio > .8) { reason = "Split geometry exceeds its minimum sizes"; return; }
+      tree(node.first, surface, ownerId, depth + 1); tree(node.second, surface, ownerId, depth + 1);
+    } else node.cells.forEach((cell) => tree(cell.node, surface, ownerId, depth + 1));
+  };
+  for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const) {
+    tree(layout.surfaces[surface], surface);
+    if (leafStacks(layout.surfaces[surface]) > policy[surface].maxLeafStacks) reason ??= "Surface slot limit exceeded";
+  }
+  for (const [id, position] of Object.entries(layout.floating)) instance(id, position.returnTo);
+  if (seen.size !== Object.keys(layout.panels).length) reason ??= "Widget instance has no placement";
+  if (Object.keys(layout.containers).some((id) => !owners.has(id))) reason ??= "Owned subtree has no Layout widget";
+  if (Object.values(layout.containers).some((node) => leafStacks(node) > policy.dashboard.maxLeafStacks)) reason ??= "Layout child slot limit exceeded";
+  for (const id of [HOME_ID, NAVIGATION_ID, BROWSER_ID]) if (!seen.has(id)) reason ??= "Required host widget missing";
+  return reason;
+}
+
+/** All structural results pass the same whole-document invariants before commit. */
+export function reduceDock(layout: DockLayout, command: Command, policy: DockPolicy = DEFAULT_DOCK_POLICY): Result {
+  const result = reduceDockCommand(layout, command, policy);
+  if (!result.ok) return result;
+  const reason = validateDock(result.layout, policy);
+  return reason ? { ok: false, layout, reason } : result;
+}
+
 function rootLocation(layout: DockLayout, nodeId: string): Target | null {
   let result: Target | null = null;
   for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const) visitNode(layout.surfaces[surface], (node) => { if (node.id === nodeId) result = { surface, intent: "tab", nodeId }; });
-  for (const [ownerId, root] of Object.entries(layout.containers)) visitNode(root, (node) => { if (node.id === nodeId) result = { surface: panelSurface(layout, ownerId) ?? "dashboard", ownerId, intent: "tab", nodeId }; });
+  for (const [ownerId, root] of Object.entries(layout.containers)) visitNode(root, (node) => { if (node.id === nodeId) result = { surface: hostSurface(layout, ownerId) ?? "dashboard", ownerId, intent: "tab", nodeId }; });
   return result;
 }
 
@@ -451,32 +508,34 @@ export function migrateDock(raw: unknown, widgets: WidgetId[] = ["weather", "clo
   const panels: Record<string, Panel> = { [HOME_ID]: base.panels[HOME_ID], [BROWSER_ID]: base.panels[BROWSER_ID], [NAVIGATION_ID]: base.panels[NAVIGATION_ID] };
   for (const [id, panel] of Object.entries(value.panels ?? {})) if (panel && typeof panel === "object" && (panel as Panel).id === id) {
     const typed = panel as Panel;
-    if (typed.kind === "widget" && isWidget(typed.widget) || (typed.kind === "unit" || typed.kind === "web-widget") && typeof typed.unitId === "string") panels[id] = typed;
+    if (typed.kind === "widget" && isWidget(typed.widget)) panels[id] = { ...typed, size: ["compact", "standard", "wide"].includes(typed.size) ? typed.size : "standard", tags: ["widget"],
+      tone: typed.tone && ["blue", "violet", "coral", "mint", "slate"].includes(typed.tone) ? typed.tone : undefined, stackMode: typed.stackMode === "carousel" ? "carousel" : "tabs" };
+    else if ((typed.kind === "unit" || typed.kind === "web-widget") && typeof typed.unitId === "string") panels[id] = { ...typed, tags: [typed.kind === "unit" ? "view" : "widget"] };
   }
   const seen = new Set<string>();
   const nodeIds = new Set<string>();
   const displaced: string[] = [];
   const containers: Record<string, Node> = {};
-  const clean = (node: any, surface: Surface, depth = 0): Node | null => {
+  const clean = (node: any, surface: Surface, depth = 0, ownerId?: string): Node | null => {
     if (!node || depth > 32 || typeof node.id !== "string") return null;
     const id = nodeIds.has(node.id) ? uid(node.kind === "split" ? "split" : node.kind === "grid" ? "grid" : "stack") : node.id;
     nodeIds.add(id);
     if (node.kind === "stack" && Array.isArray(node.tabs)) {
       const tabs: string[] = node.tabs.filter((panelId: unknown) => {
         if (typeof panelId !== "string" || !panels[panelId] || seen.has(panelId)) return false;
-        if (placementReason(panels[panelId], { surface, intent: "append" }, policy)) { displaced.push(panelId); return false; }
+        if (ownerId && ["home", "navigation", "browser"].includes(panels[panelId].kind) || placementReason(panels[panelId], { surface, ownerId, intent: "append" }, policy)) { displaced.push(panelId); return false; }
         seen.add(panelId);
         const panel = panels[panelId];
-        if (panel.kind === "widget" && panel.widget === "stack") containers[panelId] = clean(value.containers?.[panelId], surface, depth + 1) ?? emptySlot();
+        if (panel.kind === "widget" && panel.widget === "stack") containers[panelId] = clean(value.containers?.[panelId], surface, depth + 1, panelId) ?? emptySlot();
         return true;
       });
       return tabs.length || node.keepEmpty === true ? { kind: "stack", id, tabs, active: tabs.includes(node.active) ? node.active : tabs[0] ?? "", keepEmpty: node.keepEmpty === true || surface === "dashboard", presentation: node.presentation === "carousel" ? "carousel" : "tabs" } : null;
     }
     if (node.kind === "split") {
-      const first = clean(node.first, surface, depth + 1), second = clean(node.second, surface, depth + 1);
+      const first = clean(node.first, surface, depth + 1, ownerId), second = clean(node.second, surface, depth + 1, ownerId);
       return first && second ? { kind: "split", id, axis: node.axis === "vertical" ? "vertical" : "horizontal", ratio: Number.isFinite(node.ratio) ? Math.max(.2, Math.min(.8, node.ratio)) : .5, first, second } : first ?? second;
     }
-    if (node.kind === "grid" && Array.isArray(node.cells)) return { kind: "grid", id, cells: node.cells.map((cell: any) => ({ id: cell.id, node: clean(cell.node, surface, depth + 1) })).filter((cell: any) => typeof cell.id === "string" && cell.node) };
+    if (node.kind === "grid" && Array.isArray(node.cells)) return { kind: "grid", id, cells: node.cells.map((cell: any) => ({ id: cell.id, node: clean(cell.node, surface, depth + 1, ownerId) })).filter((cell: any) => typeof cell.id === "string" && cell.node) };
     return null;
   };
   const surfaces = Object.fromEntries((["main", "dashboard", "sidebar", "bottom"] as const).map((surface) => [surface, clean(value.surfaces?.[surface], surface)])) as DockLayout["surfaces"];
@@ -504,16 +563,16 @@ export function migrateDock(raw: unknown, widgets: WidgetId[] = ["weather", "clo
   }
   if (!seen.has(BROWSER_ID)) { surfaces.bottom = surfaces.bottom ? insert(surfaces.bottom, BROWSER_ID, { surface: "bottom", intent: "append" }) : base.surfaces.bottom; seen.add(BROWSER_ID); }
   if (!seen.has(NAVIGATION_ID)) { surfaces.sidebar = surfaces.sidebar ? insert(surfaces.sidebar, NAVIGATION_ID, { surface: "sidebar", intent: "append", index: 0 }) : base.surfaces.sidebar; seen.add(NAVIGATION_ID); }
-  if (surfaces.dashboard?.kind !== "grid") surfaces.dashboard = { kind: "grid", id: "grid:dashboard", cells: [] };
+  if (!surfaces.dashboard) surfaces.dashboard = { kind: "grid", id: "grid:dashboard", cells: [] };
   if (value.version !== 4 && surfaces.dashboard.kind === "grid") surfaces.dashboard = { ...surfaces.dashboard, cells: bentoRows(surfaces.dashboard.cells) };
   const floating: DockLayout["floating"] = {};
   for (const [id, item] of Object.entries(value.floating ?? {})) {
     const position = item as DockLayout["floating"][string];
-    if (panels[id]?.kind !== "widget" || seen.has(id) || !Number.isFinite(position?.x) || !Number.isFinite(position?.y)) continue;
+    if (!panels[id] || ["home", "navigation", "browser"].includes(panels[id].kind) || seen.has(id) || !Number.isFinite(position?.x) || !Number.isFinite(position?.y)) continue;
     floating[id] = { x: Math.max(0, position.x), y: Math.max(0, position.y), width: 420, height: 360,
-      returnTo: WIDGET_PLACEMENT[(panels[id] as Extract<Panel, { kind: "widget" }>).widget].docks.includes(position.returnTo) ? position.returnTo : "dashboard" };
+      returnTo: ["main", "dashboard", "sidebar", "bottom"].includes(position.returnTo) ? position.returnTo : panels[id].kind === "unit" ? "main" : "dashboard" };
     seen.add(id);
-    if (panels[id].kind === "widget" && panels[id].widget === "stack") containers[id] = clean(value.containers?.[id], position.returnTo ?? "dashboard", 1) ?? emptySlot();
+    if (panels[id].kind === "widget" && panels[id].widget === "stack") containers[id] = clean(value.containers?.[id], position.returnTo ?? "dashboard", 1, id) ?? emptySlot();
   }
   for (const id of new Set([...displaced, ...Object.keys(panels)])) {
     if (seen.has(id) || floating[id]) continue;

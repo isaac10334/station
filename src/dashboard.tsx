@@ -8,8 +8,8 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ExternalLink, FlipHorizontal2, LayoutGrid, PanelBottom, PanelLeft, RotateCcw, X } from "lucide-react";
-import { DockSurface, useDockController } from "./docking/react";
-import { panelSurface, type Panel } from "./docking/core";
+import { DockSurface, DockOwnedLayout, WidgetDragHandle, useDockController } from "./docking/react";
+import { panelSurface, panelSlot, type Panel } from "./docking/core";
 import { WIDGET_CATALOG, WidgetView, type WidgetActions } from "./widget-views";
 import type { Workspace } from "./model";
 import { webContentDocument } from "./web-content-view";
@@ -33,13 +33,13 @@ export function DockWebWidget({ panel, workspace, onOpen }: { panel: Extract<Pan
   return <section className="dash-widget dash-widget-standard web-unit-widget" aria-label={`${unit.name} web widget`}>
     <motion.div className="widget-flip" animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }} transition={{ duration: reducedMotion ? 0 : .46, ease: [0.2, 0.8, 0.2, 1] }}>
     <div className="widget-face widget-front" aria-hidden={flipped} inert={flipped}>
-      <div className="dash-widget-head"><h2>{unit.name}</h2><button type="button" className="widget-settings-trigger" aria-label={`Manage ${unit.name}`} title="Manage widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button></div>
+      <div className="dash-widget-head"><WidgetDragHandle panelId={panel.id} title={unit.name} /><h2>{unit.name}</h2><button type="button" className="widget-settings-trigger" aria-label={`Manage ${unit.name}`} title="Manage widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button></div>
       <iframe title={`${unit.name} dashboard widget`} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={webContentDocument(unit.html)} />
     </div>
     <div className="widget-face widget-back" aria-hidden={!flipped} inert={!flipped} style={{ transform: reducedMotion ? "none" : "rotateY(180deg)", visibility: reducedMotion ? flipped ? "visible" : "hidden" : undefined }}>
       <div className="widget-back-head"><h2>{unit.name} settings</h2><button type="button" onClick={() => setFlipped(false)} aria-label="Return to widget" title="Return to widget"><RotateCcw size={16} /></button></div>
       <div className="widget-choice"><span>Source</span><div><button type="button" onClick={() => onOpen(unit.id)}>Edit source</button></div></div>
-      <button type="button" className="widget-remove" onClick={() => command({ type: "close", panelId: panel.id })}><X size={14} /> Remove widget</button>
+      <button type="button" className="widget-remove" onClick={() => command({ type: "close", panelId: panel.id })}><X size={14} /> Remove instance</button>
     </div>
     </motion.div>
   </section>;
@@ -54,16 +54,16 @@ export function DockWidget({ panel, workspace, actions }: { panel: Extract<Panel
   return <section className={`dash-widget dash-widget-${panel.size} widget-tone-${panel.tone ?? (panel.widget === "weather" ? "blue" : panel.widget === "clock" ? "violet" : panel.widget === "stack" ? "coral" : "mint")}`} aria-label={`${item.title} widget`}>
     <motion.div className="widget-flip" animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }} transition={{ duration: reducedMotion ? 0 : .46, ease: [0.2, 0.8, 0.2, 1] }}>
     <div className="widget-face widget-front" aria-hidden={flipped} inert={flipped}>
-    <div className="dash-widget-head"><h2>{item.title}</h2>
+    <div className="dash-widget-head"><WidgetDragHandle panelId={panel.id} title={item.title} /><h2>{item.title}</h2>
       <button type="button" className="widget-settings-trigger" aria-label={`Customize ${item.title}`} title="Customize widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button>
     </div>
-    <WidgetView id={panel.widget} workspace={workspace} actions={actions} stackMode={panel.stackMode} />
+    <div className="station-widget-content">{panel.widget === "stack" ? <DockOwnedLayout ownerId={panel.id} /> : <WidgetView id={panel.widget} workspace={workspace} actions={actions} />}</div>
     </div>
     <div className="widget-face widget-back" aria-hidden={!flipped} inert={!flipped} style={{ transform: reducedMotion ? "none" : "rotateY(180deg)", visibility: reducedMotion ? flipped ? "visible" : "hidden" : undefined }}>
       <div className="widget-back-head"><h2>{item.title} settings</h2><button type="button" onClick={() => setFlipped(false)} aria-label="Return to widget" title="Return to widget"><RotateCcw size={16} /></button></div>
       <div className="widget-palette" role="group" aria-label="Color"><span>Color</span><div>{(["blue", "violet", "coral", "mint", "slate"] as WidgetTone[]).map((tone) => <button type="button" key={tone} className={`widget-swatch widget-swatch-${tone}`} aria-label={`${tone} color`} aria-pressed={panel.tone === tone || !panel.tone && (panel.widget === "weather" ? tone === "blue" : panel.widget === "clock" ? tone === "violet" : panel.widget === "stack" ? tone === "coral" : tone === "mint")} onClick={() => command({ type: "configureWidget", panelId: panel.id, tone })} />)}</div></div>
-      <div className="widget-choice" role="group" aria-label="Size"><span>Size</span><div>{(["compact", "standard", "wide"] as WidgetSize[]).map((size) => <button type="button" key={size} aria-pressed={panel.size === size} onClick={() => command({ type: "resizeWidget", panelId: panel.id, size })}>{size}</button>)}</div></div>
-      {panel.widget === "stack" && <div className="widget-choice" role="group" aria-label="Stack layout"><span>Stack layout</span><div>{(["carousel", "tabs"] as StackMode[]).map((mode) => <button type="button" key={mode} aria-pressed={(panel.stackMode ?? "carousel") === mode} onClick={() => command({ type: "configureWidget", panelId: panel.id, stackMode: mode })}>{mode === "carousel" ? "Vertical carousel" : "Tabs"}</button>)}</div></div>}
+      <div className="widget-choice"><span>Backing slot</span><div>{panelSlot(layout, panel.id) && <><button onClick={() => command({ type: "splitSlot", nodeId: panelSlot(layout, panel.id)!.node.id, axis: "horizontal" })}>Split columns</button><button onClick={() => command({ type: "splitSlot", nodeId: panelSlot(layout, panel.id)!.node.id, axis: "vertical" })}>Split rows</button></>}</div></div>
+      {panel.widget === "stack" && <div className="widget-choice" role="group" aria-label="Child presentation"><span>Child presentation</span><div>{(["tabs", "carousel"] as StackMode[]).map((mode) => <button type="button" key={mode} aria-pressed={(panel.stackMode ?? "tabs") === mode} onClick={() => command({ type: "configureWidget", panelId: panel.id, stackMode: mode })}>{mode === "carousel" ? "Horizontal carousel" : "Tabs"}</button>)}</div></div>}
       <div className="widget-choice" role="group" aria-label="Placement"><span>Placement</span><div className="widget-placement-actions">
         {panelSurface(layout, panel.id) ? <button type="button" onClick={() => command({ type: "float", panelId: panel.id })}><ExternalLink size={14} /> Float widget</button>
           : <button type="button" onClick={() => command({ type: "dockFloat", panelId: panel.id })}><LayoutGrid size={14} /> Return to dock</button>}
@@ -73,7 +73,7 @@ export function DockWidget({ panel, workspace, actions }: { panel: Extract<Panel
           <button type="button" onClick={() => command({ type: "move", panelId: panel.id, target: { surface: "dashboard", intent: "append" } })}><LayoutGrid size={14} /> Dashboard</button>
         </>}
       </div></div>
-      <button type="button" className="widget-remove" onClick={() => command({ type: "close", panelId: panel.id })}><X size={14} /> Remove widget</button>
+      <button type="button" className="widget-remove" onClick={() => command({ type: "close", panelId: panel.id })}><X size={14} /> Remove instance{panel.widget === "stack" ? " · keep children on dashboard" : ""}</button>
     </div>
     </motion.div>
   </section>;

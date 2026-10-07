@@ -1,0 +1,65 @@
+/* Backing slots own geometry; cards fill their measured presentation bounds. */
+.app.station-presentations { display: contents; }
+.station-presentation { z-index: 2; min-width: 0; min-height: 0; overflow: auto; background: var(--frame); color: var(--fg); scrollbar-width: thin; }
+.station-presentation-slot { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.station-presentation > * { min-width: 0; }
+.station-presentation > .dash-widget { height: 100%; border-radius: 10px; }
+.station-presentation > .component-view, .station-presentation > .web-content-view { padding: 16px; height: 100%; }
+.station-presentation .dash-widget[class*="widget-tone-"] { --widget-ink: var(--fg); --widget-muted: var(--fg-3); --widget-edge: var(--line-2); background: color-mix(in srgb, var(--raised) 96%, var(--widget-a)); color: var(--fg); box-shadow: none; min-height: 0; }
+.station-presentation .dash-widget[class*="widget-tone-"] .dash-widget-head { padding: 10px 12px; min-height: 48px; background: var(--frame); }
+.station-presentation .widget-flip, .station-presentation .widget-face { height: 100%; min-height: 0; }
+.station-presentation .widget-front { display: flex; flex-direction: column; }
+.station-presentation .widget-back { overflow: auto; padding: 16px; background: var(--raised); color: var(--fg); }
+.station-presentation .widget-settings-trigger, .station-presentation .widget-back-head button, .station-presentation .widget-choice button { color: var(--fg); background: var(--frame); border-color: var(--line-2); }
+.station-presentation .widget-choice button[aria-pressed=true] { color: var(--fg); background: var(--selected); }
+.station-presentation .widget-swatch[aria-pressed=true] { outline-color: var(--fg); }
+.station-presentation .dash-widget button:focus-visible { outline: 2px solid var(--focus, var(--fg-3)); outline-offset: 2px; }
+.station-widget-content { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
+.station-widget-content > .clock-widget { height: 100%; min-height: 0; padding: 16px; }
+.station-widget-content .capability-row { padding-inline: 12px; }
+.station-widget-content .capability-row input { accent-color: var(--fg); }
+.station-widget-content .widget-footer-link { color: var(--fg); }
+body .app .dock-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+body .app .dock-grid-cell { height: 380px; min-height: 0; }
+body .app .dock-stack-dashboard { height: 100%; }
+body .app .dock-stack-dashboard .dock-stack-body { overflow: hidden; height: 100%; }
+.station-owned-layout { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 8px; gap: 8px; }
+.station-owned-layout > .dock-stack, .station-owned-layout > .dock-split, .station-owned-layout > .station-empty-slot { flex: 1; min-height: 0; }
+.station-owned-layout .dock-stack-heading { flex-wrap: nowrap; }
+.station-empty-slot { height: 100%; min-height: 80px; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 12px; border: 1px dashed var(--line-2); border-radius: 10px; background: var(--frame); color: var(--fg-3); }
+.station-slot-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.station-slot-controls button, .station-add-slot { border: 1px solid var(--line-2); background: var(--raised); color: var(--fg-2); border-radius: 6px; padding: 6px 8px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.station-add-slot { flex: none; }
+.station-drag-handle { position: relative; display: inline-grid; place-items: center; flex: none; width: 28px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--fg-3); cursor: grab; touch-action: none; user-select: none; overflow: hidden; }
+.station-drag-handle[data-pressing] { background: var(--selected); color: var(--fg); border-color: var(--line-2); }
+.station-drag-handle[data-dragging] { background: var(--selected); color: var(--fg); cursor: grabbing; outline: 2px solid var(--fg-3); }
+.station-hold-progress { position: absolute; inset: auto 2px 0; height: 2px; background: var(--fg-2); transform: scaleX(0); transform-origin: left; }
+.station-drag-handle[data-pressing] .station-hold-progress { animation: station-hold 400ms linear forwards; }
+@keyframes station-hold { to { transform: scaleX(1); } }
+.app .dock-stack-tab [role=tab] { cursor: pointer; touch-action: auto; }
+.station-carousel { display: flex; width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
+.station-carousel-page { flex: 0 0 100%; height: 100%; min-width: 0; scroll-snap-align: start; }
+.dock-target-layer { z-index: 20; }
+.dock-drop-zone { z-index: 21; }
+.station-presentation .dock-target-layer { z-index: 30; }
+.dock-floating-layer { z-index: 15; }
+.dock-float-header { cursor: default; touch-action: auto; }
+.dock-drop-zone[data-over][data-eligible] { background: color-mix(in srgb, var(--selected) 65%, transparent); border: 2px solid var(--fg-3); }
+.dock-drop-zone[data-over]:not([data-eligible]) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.station-widget-browser h3 { font-size: 12px; margin: 20px 0 8px; }
+.station-widget-browser input { width: 100%; }
+.station-definition-list, .station-instance-list { display: flex; flex-direction: column; gap: 6px; }
+.station-definition-list button, .station-instance-list button { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line-2); border-radius: 8px; color: var(--fg); background: var(--raised); text-align: left; }
+.station-definition-list button > span:first-of-type, .station-instance-list button > span:first-of-type { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.station-definition-list small, .station-instance-list small { color: var(--fg-3); font-size: 11px; overflow-wrap: anywhere; }
+.station-definition-list em { font-style: normal; color: var(--fg-4); font-size: 10px; }
+.station-instance-list button:disabled { opacity: .55; }
+.station-widget-browser [role=status] { min-height: 16px; }
+.station-brand { display: block; padding: 0 8px 8px; font-size: 12px; font-weight: 650; color: var(--fg-2); }
+.station-destination-preview { position: fixed; z-index: 60; pointer-events: none; border: 2px solid var(--fg-3); border-radius: 10px; background: color-mix(in srgb, var(--selected) 35%, transparent); }
+.station-destination-preview > span { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px); padding: 5px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--raised); color: var(--fg); font-size: 11px; }
+.station-destination-preview[data-rejected] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+@media (hover: hover) { .station-drag-handle:hover, .station-slot-controls button:hover, .station-add-slot:hover { background: var(--hover); color: var(--fg); } }
+@container (max-width: 280px) { .station-widget-content .weather-hours { grid-template-columns: repeat(3, minmax(0, 1fr)); } .station-widget-content .clock-time { font-size: 28px; } }
+@media (max-width: 640px) { .app .dock-grid-cell { height: 480px; } .app .dock-grid-cell > .dock-split[data-axis=horizontal] > [data-panel-group] { flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { .station-hold-progress { animation-duration: 0ms !important; } .station-presentation *, .station-carousel { scroll-behavior: auto !important; } }

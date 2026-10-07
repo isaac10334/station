@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createDockLayout, reduceDock, migrateDock, descendants, panelSlot, findNode, type DockLayout, type Command } from "../src/docking/core";
+import { createDockLayout, reduceDock, migrateDock, descendants, panelSlot, findNode, validateDock, type DockLayout, type Command } from "../src/docking/core";
 import { createStore } from "../src/model";
 
 function apply(layout: DockLayout, command: Command) {
@@ -55,4 +55,37 @@ test("container removal promotes children and undo restores the complete subtree
   expect(descendants(store.active().dock, "parent")).toEqual(["child"]);
   expect(store.redoLayout()).toBe(true);
   expect(store.active().dock.panels.parent).toBeUndefined();
+});
+test("nested slots work in a dock and a float with the same children and ratios", () => {
+  let dock = apply(createDockLayout([]), { type: "createWidget", widget: "stack", id: "layout", target: { surface: "sidebar", intent: "tab" } });
+  dock = apply(dock, { type: "splitSlot", nodeId: dock.containers.layout.id, axis: "vertical" });
+  const split = dock.containers.layout;
+  if (split.kind !== "split") throw new Error("Expected split");
+  dock = apply(dock, { type: "createWebWidget", unitId: "web", id: "web-widget", target: { surface: "sidebar", ownerId: "layout", nodeId: split.first.id, intent: "tab" } });
+  dock = apply(dock, { type: "float", panelId: "layout" });
+  dock = apply(dock, { type: "activate", panelId: "web-widget" });
+  dock = apply(dock, { type: "resizeSplit", nodeId: split.id, ratio: .123456 });
+  expect(findNode(dock, split.id)).toMatchObject({ ratio: .2 });
+  expect(validateDock(dock)).toBeNull();
+  expect(descendants(migrateDock(dock), "layout")).toEqual(["web-widget"]);
+  dock = apply(dock, { type: "move", panelId: "web-widget", target: dashboard });
+  expect(descendants(dock, "layout")).toEqual([]);
+});
+test("a swap rejects the reverse policy direction and preserves the exact document", () => {
+  let dock = apply(createDockLayout(["clock"]), { type: "createWidget", widget: "clock", id: "main-clock", target: { surface: "main", nodeId: "stack:main", intent: "right" } });
+  const clock = Object.keys(dock.panels).find((id) => id.startsWith("widget:"))!;
+  const target = { surface: "main", nodeId: "stack:main", intent: "swap" } as const;
+  const result = reduceDock(dock, { type: "move", panelId: clock, target });
+  expect(result.ok).toBe(false); expect(result.layout).toBe(dock);
+});
+test("whole dashboard splits and malformed ownership survive repair without lost instances", () => {
+  let dock = createDockLayout(["stack", "clock"]);
+  dock = apply(dock, { type: "createWidget", id: "outside", widget: "snake", target: { surface: "dashboard", intent: "right" } });
+  expect(migrateDock(dock).surfaces.dashboard?.kind).toBe("split");
+  const owner = Object.keys(dock.containers)[0];
+  const corrupt = structuredClone(dock);
+  corrupt.containers[owner] = { kind: "stack", id: "corrupt", active: owner, tabs: [owner, "workspace-home", "outside"] };
+  const restored = migrateDock(corrupt);
+  expect(validateDock(restored)).toBeNull();
+  expect(Object.keys(restored.panels)).toEqual(Object.keys(dock.panels));
 });
