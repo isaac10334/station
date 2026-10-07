@@ -12,8 +12,8 @@ describe("dock document", () => {
   test("migrates flat placements, sizes, browser preference, and deduplicates the browser", () => {
     const dock = migrateDock({ sidebar: ["unit-browser", "widget:snake", "unit-browser"], bottom: ["widget:components"], widgetSizes: { snake: "compact" }, bottomSize: 99, browserView: "list" }, ["welcome"]);
     expect(surfacePanels(dock, "sidebar")).toContain(BROWSER_ID);
-    expect(surfacePanels(dock, "sidebar")).toContain("widget:snake:legacy-1");
-    expect(surfacePanels(dock, "bottom")).toContain("widget:components:legacy-2");
+    expect(surfacePanels(dock, "sidebar")).toContain("widget:snake:legacy-0");
+    expect(Object.values(dock.panels).some((panel) => panel.kind === "widget" && (panel.widget as string) === "components")).toBe(false);
     expect(Object.values(dock.panels).find((panel) => panel.kind === "widget" && panel.widget === "snake")).toMatchObject({ size: "compact" });
     expect(dock.browserView).toBe("list");
     expect(dock.bottomSize).toBe(60);

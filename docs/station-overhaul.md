@@ -23,3 +23,5 @@ Baseline: `46e9a56`, branch `station-overhaul`. Stop before assets.
 Stages and browser evidence are recorded here as they complete. The checkout remains at `unit-workspace` while Codex and the Bun watcher hold active paths. Final handoff includes rename/reopen commands.
 
 Stage 1: product/package renamed; compatibility strings retained. Typecheck and standalone build pass. Built-in browser reload shows Station and the pre-existing workspace, source unit and widget IDs.
+
+Stage 2: v4 dock migration, owned Layout subtrees, persistent empty slots, bento backing rows, atomic swap/split/add/remove commands and child promotion are implemented. 33 tests, typecheck and build pass. Browser reload preserves prior IDs and displays migrated split rows. Legacy test corrected to reject the previously removed starter definition.
