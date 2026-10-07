@@ -8,7 +8,7 @@ export type DemoIdentity = { kind: "guest" | "demo"; email?: string };
 
 export function Onboarding({ onContinue }: { onContinue: (identity: DemoIdentity) => void }) {
   const [signingIn, setSigningIn] = useState(false);
-  return <Dialog open dismissible={false} onOpenChange={() => {}}><DialogContent size="md" showCloseButton={false} className="onboarding-card" backdropClassName="onboarding-dialog-backdrop" aria-label="Enter Unit Workspace">
+  return <Dialog open dismissible={false} onOpenChange={() => {}}><DialogContent size="md" showCloseButton={false} className="onboarding-card" backdropClassName="onboarding-dialog-backdrop" aria-label="Enter Station">
     <div className="onboarding-mark"><Box size={24} /></div>
     <div className="eyebrow">UNIT WORKSPACE</div>
     {!signingIn ? <><h1>Make a space for what you build.</h1><p>Open your personal workspace to create Rust Components, inspect capabilities, and arrange your dashboard.</p>

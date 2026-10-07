@@ -1,6 +1,6 @@
-# Unit Workspace agent notes
+# Station agent notes
 
-Unit Workspace is intended to become a self-extending workspace and a full Loop Kit host. People should be able to create and manage units, then use them to extend the workspace from within the app. WebAssembly Components are one extension path, alongside other possible unit types. Favor dynamic creation and execution workflows. Clearly distinguish working behavior from proposals.
+Station is intended to become a self-extending workspace and a full Loop Kit host. People should be able to create and manage units, then use them to extend the workspace from within the app. WebAssembly Components are one extension path, alongside other possible unit types. Favor dynamic creation and execution workflows. Clearly distinguish working behavior from proposals.
 
 - **UI:** Read [DESIGN.md](DESIGN.md) before UI work and use its relevant design skills. Keep built-in React UI distinct from future capability-provided surfaces. Use semantic color and state tokens; preserve keyboard access, visible focus, and shortcuts that yield to inputs, games, and editors.
 - **Code boundaries:** Keep rendering and temporary view state separate from workspace and app state and from effectful services such as storage, grants, builds, and execution. Use descriptive, responsibility-based module names. Treat `model.ts` and `composition.ts` as current code, not prescribed homes for every new feature.

@@ -1,4 +1,4 @@
-# Unit Workspace
+# Station
 
 A local Bun server and a Component focused web workbench. Workspace data and capability grants are saved in browser `localStorage`; the server builds Component source in Vercel Sandbox and stores verified artifact bytes locally by hash.
 

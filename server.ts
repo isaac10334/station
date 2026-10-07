@@ -83,4 +83,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`Unit Workspace: ${server.url}`);
+console.log(`Station: ${server.url}`);
