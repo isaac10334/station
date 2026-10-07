@@ -5,15 +5,33 @@
  * @example
  * <Dashboard workspace={workspace} />
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ExternalLink, FlipHorizontal2, LayoutGrid, PanelBottom, PanelLeft, RotateCcw, X } from "lucide-react";
 import { DockSurface, DockOwnedLayout, WidgetDragHandle, useDockController } from "./docking/react";
 import { panelSurface, panelSlot, type Panel } from "./docking/core";
+import { revealPresentation } from "./docking/presentations";
 import { WIDGET_CATALOG, WidgetView, type WidgetActions } from "./widget-views";
 import type { Workspace } from "./model";
 import { webContentDocument } from "./web-content-view";
 import type { WidgetTone, WidgetSize, StackMode } from "./panel-layout";
+
+function useWidgetFlip() {
+  const [flipped, setFlipped] = useState(false);
+  const section = useRef<HTMLElement>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    let cancelled = false;
+    const frame = requestAnimationFrame(async () => {
+      const id = section.current?.closest<HTMLElement>("[data-presentation-owner]")?.dataset.presentationOwner;
+      if (flipped && id) await revealPresentation(id);
+      if (!cancelled) section.current?.querySelector<HTMLElement>(flipped ? ".widget-back button" : ".widget-settings-trigger")?.focus({ preventScroll: true });
+    });
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
+  }, [flipped]);
+  return { flipped, setFlipped, section };
+}
 
 /** A home surface contains the widget grid; placement lives in the dock document. */
 export function Dashboard({ workspace }: { workspace: Workspace }) {
@@ -26,11 +44,11 @@ export function Dashboard({ workspace }: { workspace: Workspace }) {
 /** Dashboard placement of authored web content; the iframe retains the same sandbox as its editor preview. */
 export function DockWebWidget({ panel, workspace, onOpen }: { panel: Extract<Panel, { kind: "web-widget" }>; workspace: Workspace; onOpen: (id: string) => void }) {
   const { command } = useDockController();
-  const [flipped, setFlipped] = useState(false);
+  const { flipped, setFlipped, section } = useWidgetFlip();
   const reducedMotion = useReducedMotion();
   const unit = workspace.units.find((item) => item.id === panel.unitId);
   if (!unit || unit.kind !== "web-content") return null;
-  return <section className="dash-widget dash-widget-standard web-unit-widget" aria-label={`${unit.name} web widget`}>
+  return <section ref={section} className="dash-widget dash-widget-standard web-unit-widget" aria-label={`${unit.name} web widget`}>
     <motion.div className="widget-flip" animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }} transition={{ duration: reducedMotion ? 0 : .46, ease: [0.2, 0.8, 0.2, 1] }}>
     <div className="widget-face widget-front" aria-hidden={flipped} inert={flipped}>
       <div className="dash-widget-head"><WidgetDragHandle panelId={panel.id} title={unit.name} /><h2>{unit.name}</h2><button type="button" className="widget-settings-trigger" aria-label={`Manage ${unit.name}`} title="Manage widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button></div>
@@ -49,9 +67,9 @@ export function DockWebWidget({ panel, workspace, onOpen }: { panel: Extract<Pan
 export function DockWidget({ panel, workspace, actions }: { panel: Extract<Panel, { kind: "widget" }>; workspace: Workspace; actions: WidgetActions }) {
   const { command, layout } = useDockController();
   const item = WIDGET_CATALOG[panel.widget];
-  const [flipped, setFlipped] = useState(false);
+  const { flipped, setFlipped, section } = useWidgetFlip();
   const reducedMotion = useReducedMotion();
-  return <section className={`dash-widget dash-widget-${panel.size} widget-tone-${panel.tone ?? (panel.widget === "weather" ? "blue" : panel.widget === "clock" ? "violet" : panel.widget === "stack" ? "coral" : "mint")}`} aria-label={`${item.title} widget`}>
+  return <section ref={section} className={`dash-widget dash-widget-${panel.size} widget-tone-${panel.tone ?? (panel.widget === "weather" ? "blue" : panel.widget === "clock" ? "violet" : panel.widget === "stack" ? "coral" : "mint")}`} aria-label={`${item.title} widget`}>
     <motion.div className="widget-flip" animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }} transition={{ duration: reducedMotion ? 0 : .46, ease: [0.2, 0.8, 0.2, 1] }}>
     <div className="widget-face widget-front" aria-hidden={flipped} inert={flipped}>
     <div className="dash-widget-head"><WidgetDragHandle panelId={panel.id} title={item.title} /><h2>{item.title}</h2>

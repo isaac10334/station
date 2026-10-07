@@ -1,3 +1,4 @@
+import { widgetDefinitions, definitionForPanel } from "./widget-catalog";
 import { WidgetBrowser } from "./widget-browser";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Box, Command, Folder, LayoutGrid, PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Plus, Search, Settings2, Undo2, Redo2, X } from "lucide-react";
@@ -5,11 +6,10 @@ import { demoSession, deps } from "./composition";
 import { Dashboard, DockWebWidget, DockWidget } from "./dashboard";
 import { ComponentView } from "./component-view";
 import { WebContentView } from "./web-content-view";
-import { DockBottomEdge, DockCatalogItem, DockFloatingPanels, DockHost, DockInspector, DockMainTabs, DockMobileSurface, DockSurface, useDockController } from "./docking/react";
+import { DockBottomEdge, DockFloatingPanels, DockHost, DockInspector, DockMainTabs, DockMobileSurface, DockSurface, useDockController } from "./docking/react";
 import { BROWSER_ID, HOME_ID, panelSurface, surfacePanels, visitNode, type Command as DockCommand, type DockLayout, type Panel as DockPanel, type Result } from "./docking/core";
 import { UnitBrowser } from "./unit-browser";
-import { WIDGET_CATALOG, type WidgetActions } from "./widget-views";
-import { WIDGET_IDS } from "./panel-layout";
+import { type WidgetActions } from "./widget-views";
 import { Onboarding, type DemoIdentity } from "./onboarding";
 import { WorkspaceSwitcher } from "@/components/ui/workspace-switcher";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarItem } from "@/components/ui/sidebar";
@@ -171,7 +171,7 @@ export function WorkspaceApp() {
   };
   function renderPanel(panel: DockPanel) {
     if (panel.kind === "navigation") return <Sidebar className="app-sidebar" value="overview" aria-label="Workspace navigation">
-      <SidebarHeader><span className="station-brand">Station</span><WorkspaceSwitcher shortcut="alt" workspaces={state.workspaces.map((item) => ({ id: item.id, name: item.name, plan: "Local workspace", detail: `${item.units.length} units` }))} value={workspace.id} onValueChange={store.selectWorkspace} onCreate={(name) => name.trim() ? store.createWorkspace(name.trim()) : showOverlay({ kind: "create", target: "workspace" })} /></SidebarHeader>
+      <SidebarHeader className="station-brand-header"><span className="station-brand">Station</span><WorkspaceSwitcher shortcut="alt" workspaces={state.workspaces.map((item) => ({ id: item.id, name: item.name, plan: "Local workspace", detail: `${item.units.length} units` }))} value={workspace.id} onValueChange={store.selectWorkspace} onCreate={(name) => name.trim() ? store.createWorkspace(name.trim()) : showOverlay({ kind: "create", target: "workspace" })} /></SidebarHeader>
       <SidebarContent aria-label="Workspace navigation"><SidebarGroup label="Workspace" collapsible><SidebarItem value="overview" icon={<LayoutGrid />} onClick={() => command({ type: "activate", panelId: HOME_ID })}>Overview</SidebarItem></SidebarGroup></SidebarContent>
       <SidebarFooter className="workspace-sidebar-footer"><SidebarItem value="settings" icon={<Settings2 />} onClick={() => showOverlay({ kind: "settings" })}>Settings</SidebarItem></SidebarFooter>
     </Sidebar>;
@@ -191,7 +191,7 @@ export function WorkspaceApp() {
   const sidebarHasPanels = surfacePanels(workspace.dock, "sidebar").length > 0;
   const bottomHasPanels = surfacePanels(workspace.dock, "bottom").length > 0 || narrow && sidebarHasPanels;
   useEffect(() => { if (narrow && sidebarHasPanels) setBottomOpen(true); }, [narrow, sidebarHasPanels]);
-  return <DockHost key={workspace.id} layout={workspace.dock} onCommand={command} renderPanel={renderPanel}
+  return <DockHost key={workspace.id} layout={workspace.dock} onCommand={command} renderPanel={renderPanel} panelTitle={(panel) => definitionForPanel(panel, widgetDefinitions(workspace.units))?.title ?? panel.id}
     debugDropZones={new URLSearchParams(location.search).has("debugDropZones")}
     debugLayout={new URLSearchParams(location.search).has("debugLayout")}>
     <WidgetBrowser workspace={workspace} /><div className={`app density-${state.app.density} ${sidebarHasPanels ? "has-sidebar-dock" : ""}`} data-sidebar-side={workspace.dock.sidebarSide} data-sidebar-hidden={workspace.dock.hidden.sidebar || undefined}>

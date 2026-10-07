@@ -1,10 +1,26 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { descendants, type DockLayout, type Panel } from "./core";
+import { clippedBounds } from "./geometry";
 
 type Bounds = { x: number; y: number; width: number; height: number; visible: boolean; interactive: boolean; clip: string; placement: string };
 type Anchors = Map<string, HTMLElement>;
 const PresentationContext = createContext<{ attach: (id: string, node: HTMLElement | null) => void } | null>(null);
+
+/** Reveal outer backing slots before focusing content in the persistent layer. */
+export async function revealPresentation(id: string) {
+  const chain: HTMLElement[] = [];
+  let anchor = document.querySelector<HTMLElement>(`[data-instance-slot="${CSS.escape(id)}"]`);
+  while (anchor && !chain.includes(anchor)) {
+    chain.unshift(anchor);
+    const owner = anchor.closest<HTMLElement>("[data-presentation-owner]")?.dataset.presentationOwner;
+    anchor = owner ? document.querySelector<HTMLElement>(`[data-instance-slot="${CSS.escape(owner)}"]`) : null;
+  }
+  for (const node of chain) {
+    node.scrollIntoView({ block: "start", inline: "nearest" });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }
+}
 
 /** Geometry anchor only. Content stays mounted in the host's persistent layer. */
 export function PresentationSlot({ panel, renderPanel }: { panel: Panel; renderPanel: (panel: Panel) => ReactNode }) {
@@ -40,18 +56,7 @@ export function PresentationHost({ layout, renderPanel, children }: { layout: Do
         const parent = node.closest<HTMLElement>("[data-presentation-owner]");
         const parentHidden = !!parent && parent.style.visibility === "hidden" || !!node.closest(".widget-face[aria-hidden=true], [hidden]");
         // Clip to native scrolling ancestors; the content layer never escapes a dock.
-        let left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom;
-        for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
-          const style = getComputedStyle(ancestor);
-          if (style.display === "contents") continue;
-          if (/(auto|scroll|hidden|clip)/.test(style.overflow + style.overflowX + style.overflowY)) {
-            const clip = ancestor.getBoundingClientRect(); left = Math.max(left, clip.left); top = Math.max(top, clip.top); right = Math.min(right, clip.right); bottom = Math.min(bottom, clip.bottom);
-          }
-          if (ancestor.dataset.presentationOwner && style.clipPath.startsWith("inset(")) {
-            const inset = ancestor.style.clipPath.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
-            const clip = ancestor.getBoundingClientRect(); left = Math.max(left, clip.left + (inset[3] ?? inset[1] ?? inset[0])); top = Math.max(top, clip.top + inset[0]); right = Math.min(right, clip.right - (inset[1] ?? inset[0])); bottom = Math.min(bottom, clip.bottom - (inset[2] ?? inset[0]));
-          }
-        }
+        const { left, top, right, bottom } = clippedBounds(node);
         next[id] = { x: Math.round(rect.left * 10) / 10, y: Math.round(rect.top * 10) / 10, width: Math.round(rect.width * 10) / 10, height: Math.round(rect.height * 10) / 10,
           visible: !!node.getClientRects().length && right > left && bottom > top && !parentHidden,
           interactive: !node.closest("[inert]"), placement: node.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId ?? "floating",
@@ -83,16 +88,22 @@ export function PresentationHost({ layout, renderPanel, children }: { layout: Do
           const target = event.target as HTMLElement, anchor = anchors.current.get(panel.id);
           if (!anchor || !box) return;
           const rect = target.getBoundingClientRect(), inset = box.clip.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
-          if (rect.top < box.y + inset[0] || rect.bottom > box.y + box.height - inset[2]) anchor.scrollIntoView({ block: "nearest", inline: "nearest" });
+          if (rect.top < box.y + inset[0] || rect.bottom > box.y + box.height - inset[2]) void revealPresentation(panel.id);
         }}
         onWheel={(event) => {
           if (event.defaultPrevented || event.ctrlKey) return;
-          const canScroll = (element: HTMLElement) => { const style = getComputedStyle(element); return /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1 && (event.deltaY < 0 ? element.scrollTop > 0 : element.scrollTop < element.scrollHeight - element.clientHeight - 1); };
+          const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+          const delta = horizontal ? event.deltaX : event.deltaY;
+          const canScroll = (element: HTMLElement) => {
+            const style = getComputedStyle(element), position = horizontal ? element.scrollLeft : element.scrollTop;
+            const extent = horizontal ? element.scrollWidth - element.clientWidth : element.scrollHeight - element.clientHeight;
+            return /(auto|scroll)/.test(horizontal ? style.overflowX : style.overflowY) && extent > 1 && (delta < 0 ? position > 0 : position < extent - 1);
+          };
           for (let element = event.target as HTMLElement; element && element !== event.currentTarget.parentElement; element = element.parentElement!) if (canScroll(element)) return;
           const anchor = anchors.current.get(panel.id);
-          for (let element = anchor?.parentElement; element; element = element.parentElement) if (canScroll(element)) { element.scrollTop += event.deltaY; break; }
+          for (let element = anchor?.parentElement; element; element = element.parentElement) if (canScroll(element)) { if (horizontal) element.scrollLeft += delta; else element.scrollTop += delta; break; }
         }}
-        style={{ position: "fixed", zIndex: (floated ? 16 : layout.maximized === panel.id ? 26 : 2) + depth * .05, visibility: visible ? "visible" : "hidden", clipPath: `inset(${clip})`, left: box?.x ?? 0, top: box?.y ?? 0, width: box?.width ?? 1, height: box?.height ?? 1 }}
+        style={{ position: "fixed", zIndex: (floated ? 60 : layout.maximized === panel.id ? 100 : 2) + depth, visibility: visible ? "visible" : "hidden", clipPath: `inset(${clip})`, left: box?.x ?? 0, top: box?.y ?? 0, width: box?.width ?? 1, height: box?.height ?? 1 }}
         layout={reduced ? false : "position"} layoutDependency={`${box?.placement}:${box?.width}:${box?.height}`} transition={{ layout: { duration: .22, ease: [0.2, 0.8, 0.2, 1] } }}>{renderPanel(panel)}</motion.div>;
     })}</div>
   </PresentationContext.Provider>;

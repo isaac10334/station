@@ -8,6 +8,43 @@ function apply(layout: DockLayout, command: Command) {
   return result.layout;
 }
 const dashboard = { surface: "dashboard", intent: "append" } as const;
+test("additional editor instances share source; removal keeps content; content deletion removes all views", () => {
+  const values = new Map<string, string>();
+  const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+  const store = createStore(storage);
+  const id = store.createUnit("Multiple views");
+  store.dispatchDock({ type: "createUnitView", unitId: id, id: "editor-a", target: dashboard });
+  store.dispatchDock({ type: "createUnitView", unitId: id, id: "editor-b", target: dashboard });
+  store.editFile(id, "src/lib.rs", "// shared source\n");
+  const reloaded = createStore(storage);
+  expect(reloaded.active().dock.panels["editor-a"]).toMatchObject({ unitId: id });
+  expect(reloaded.active().dock.panels["editor-b"]).toMatchObject({ unitId: id });
+  expect(reloaded.active().units.find((unit) => unit.id === id)).toMatchObject({ files: { "src/lib.rs": "// shared source\n" }, revision: 1 });
+  reloaded.dispatchDock({ type: "close", panelId: "editor-a" });
+  expect(reloaded.active().units.some((unit) => unit.id === id)).toBe(true);
+  reloaded.deleteUnits([id]);
+  expect(reloaded.active().dock.panels["editor-b"]).toBeUndefined();
+  expect(reloaded.dispatchDock({ type: "createUnitView", unitId: id, target: dashboard }).ok).toBe(false);
+});
+test("appending after a whole-dashboard split retains every placed instance", () => {
+  let dock = createDockLayout(["clock"]);
+  dock = apply(dock, { type: "createWidget", widget: "snake", id: "right", target: { surface: "dashboard", nodeId: dock.surfaces.dashboard!.id, intent: "right" } });
+  dock = apply(dock, { type: "createWidget", widget: "clock", id: "appended", target: dashboard });
+  expect(validateDock(dock)).toBeNull();
+  expect(panelSlot(dock, "right")).not.toBeNull();
+  expect(panelSlot(dock, "appended")).not.toBeNull();
+});
+test("a floating position commit has one independent undo step", () => {
+  const store = createStore({ getItem: () => null, setItem: () => {} });
+  store.dispatchDock({ type: "createWidget", widget: "clock", id: "float", target: dashboard });
+  store.dispatchDock({ type: "float", panelId: "float" });
+  store.dispatchDock({ type: "moveFloat", panelId: "float", x: 300, y: 100 });
+  expect(store.active().dock.floating.float).toMatchObject({ x: 300, y: 100 });
+  store.undoLayout();
+  expect(store.active().dock.floating.float).toMatchObject({ x: 80, y: 80 });
+  store.redoLayout();
+  expect(store.active().dock.floating.float).toMatchObject({ x: 300, y: 100 });
+});
 test("Layout children share identity, configuration, placement, migration and cycle checks", () => {
   let dock = apply(createDockLayout([]), { type: "createWidget", widget: "stack", id: "parent", target: dashboard });
   const target = { surface: "dashboard", ownerId: "parent", nodeId: dock.containers.parent.id, intent: "tab" } as const;

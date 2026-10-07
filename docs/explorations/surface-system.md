@@ -20,7 +20,7 @@
 ## Candidate slices
 
 - **Floating windows:** Built-in React widget panels now have an in-app float with stable identity, viewport clamping, and a return action. A general contributed-view float contract and modal focus rules remain exploratory.
-- **Broader tiling:** Try layouts with three or more panes, insertion previews, minimum sizes, keyboard movement, and restoration without duplicate panel IDs.
+- **Broader tiling:** Station now has real nested Layout children, backing splits, insertion previews, keyboard movement and unique placements. Generic contributed-surface registration and independently resizable row extents remain exploratory.
 - **Plugin surface:** Define one narrow, revocable UI capability and verify it with a real current artifact. Test malformed events, missing grants, revocation, and stale builds before expanding the element catalog.
 - **Portable rendering:** Compare a constrained declarative DOM surface with a bounded canvas or WebGPU surface through a typed protocol. Test accessibility, hit testing, resize, device loss, and resource limits with a real interactive sample.
 

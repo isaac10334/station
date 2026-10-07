@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Activity, ArrowLeft, ArrowRight, Clock3, CloudSun, Layers3, ShieldCheck, Sparkles, Check } from "lucide-react";
+import { ArrowRight, Clock3, ShieldCheck } from "lucide-react";
 import { Snake } from "@/components/games/snake";
 import { HOST_CLOCK, HOST_FEED, HOST_LOG, HOST_SURFACE, type ComponentUnit, type WidgetId, type Workspace } from "./model";
 import type { StackMode } from "./panel-layout";
@@ -25,7 +25,7 @@ function ClockWidget() {
 }
 
 /** Built-in React content; dock placement does not grant Component authority. */
-export function WidgetView({ id, workspace, actions, stackMode = "carousel" }: { id: WidgetId; workspace: Workspace; actions: WidgetActions; stackMode?: StackMode }) {
+export function WidgetView({ id, workspace, actions }: { id: WidgetId; workspace: Workspace; actions: WidgetActions }) {
   if (id === "weather") return <WeatherWidget />;
   if (id === "clock") return <ClockWidget />;
   if (id === "stack") return null; // Layout content is rendered by the shared dock node renderer.

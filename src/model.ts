@@ -289,8 +289,9 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
           result = { ok: false, layout: workspace.dock, reason: "Web content unit not found" };
           return workspace;
         }
+        if (command.type === "createUnitView" && !workspace.units.some((unit) => unit.id === command.unitId)) { result = { ok: false, layout: workspace.dock, reason: "Unit content not found" }; return workspace; }
         result = reduceDock(workspace.dock, command, policy);
-        if (result.ok && result.layout !== workspace.dock && !["activate", "browserView", "visibility", "moveFloat"].includes(command.type)) {
+        if (result.ok && result.layout !== workspace.dock && !["activate", "browserView", "visibility"].includes(command.type)) {
           const history = historyFor(workspace.id);
           const resizeKey = command.type === "resizeSplit" ? command.nodeId : command.type === "resizeBottom" ? "bottom" : null;
           const now = Date.now();

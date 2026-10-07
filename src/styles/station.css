@@ -1,14 +1,17 @@
 /* Backing slots own geometry; cards fill their measured presentation bounds. */
+:root { --z-dropdown: 150; --z-overlay: 200; --z-dialog: 201; --z-popover: 210; --z-toast: 220; --z-tooltip: 230; }
 .app.station-presentations { display: contents; }
 .station-presentation { z-index: 2; min-width: 0; min-height: 0; overflow: auto; background: var(--frame); color: var(--fg); scrollbar-width: thin; }
 .station-presentation-slot { width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .station-presentation > * { min-width: 0; }
+.station-presentation > .app-sidebar { display: flex; position: relative; inset: auto; width: 100%; min-width: 0; height: 100%; }
 .station-presentation > .dash-widget { height: 100%; border-radius: 10px; }
 .station-presentation > .component-view, .station-presentation > .web-content-view { padding: 16px; height: 100%; }
 .station-presentation .dash-widget[class*="widget-tone-"] { --widget-ink: var(--fg); --widget-muted: var(--fg-3); --widget-edge: var(--line-2); background: color-mix(in srgb, var(--raised) 96%, var(--widget-a)); color: var(--fg); box-shadow: none; min-height: 0; }
 .station-presentation .dash-widget[class*="widget-tone-"] .dash-widget-head { padding: 10px 12px; min-height: 48px; background: var(--frame); }
 .station-presentation .widget-flip, .station-presentation .widget-face { height: 100%; min-height: 0; }
 .station-presentation .widget-front { display: flex; flex-direction: column; }
+.station-presentation .widget-face[aria-hidden=true] { visibility: hidden; }
 .station-presentation .widget-back { overflow: auto; padding: 16px; background: var(--raised); color: var(--fg); }
 .station-presentation .widget-settings-trigger, .station-presentation .widget-back-head button, .station-presentation .widget-choice button { color: var(--fg); background: var(--frame); border-color: var(--line-2); }
 .station-presentation .widget-choice button[aria-pressed=true] { color: var(--fg); background: var(--selected); }
@@ -38,11 +41,13 @@ body .app .dock-stack-dashboard .dock-stack-body { overflow: hidden; height: 100
 @keyframes station-hold { to { transform: scaleX(1); } }
 .app .dock-stack-tab [role=tab] { cursor: pointer; touch-action: auto; }
 .station-carousel { display: flex; width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
-.station-carousel-page { flex: 0 0 100%; height: 100%; min-width: 0; scroll-snap-align: start; }
+.station-carousel-page { display: flex; flex-direction: column; flex: 0 0 100%; height: 100%; min-width: 0; scroll-snap-align: start; }
+.station-carousel-page > .station-presentation-slot { flex: 1; height: auto; }
+.station-carousel-hint { display: grid; place-items: center; height: 28px; flex: none; color: var(--fg-3); font-size: 10px; touch-action: pan-x; user-select: none; }
 .dock-target-layer { z-index: 20; }
 .dock-drop-zone { z-index: 21; }
 .station-presentation .dock-target-layer { z-index: 30; }
-.dock-floating-layer { z-index: 15; }
+.dock-floating-layer { z-index: 55; }
 .dock-float-header { cursor: default; touch-action: auto; }
 .dock-drop-zone[data-over][data-eligible] { background: color-mix(in srgb, var(--selected) 65%, transparent); border: 2px solid var(--fg-3); }
 .dock-drop-zone[data-over]:not([data-eligible]) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
@@ -56,10 +61,12 @@ body .app .dock-stack-dashboard .dock-stack-body { overflow: hidden; height: 100
 .station-instance-list button:disabled { opacity: .55; }
 .station-widget-browser [role=status] { min-height: 16px; }
 .station-brand { display: block; padding: 0 8px 8px; font-size: 12px; font-weight: 650; color: var(--fg-2); }
+.station-brand-header { flex-direction: column; align-items: stretch; gap: 0; }
+.station-destination-preview { z-index: 140 !important; }
 .station-destination-preview { position: fixed; z-index: 60; pointer-events: none; border: 2px solid var(--fg-3); border-radius: 10px; background: color-mix(in srgb, var(--selected) 35%, transparent); }
 .station-destination-preview > span { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px); padding: 5px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--raised); color: var(--fg); font-size: 11px; }
 .station-destination-preview[data-rejected] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
 @media (hover: hover) { .station-drag-handle:hover, .station-slot-controls button:hover, .station-add-slot:hover { background: var(--hover); color: var(--fg); } }
 @container (max-width: 280px) { .station-widget-content .weather-hours { grid-template-columns: repeat(3, minmax(0, 1fr)); } .station-widget-content .clock-time { font-size: 28px; } }
-@media (max-width: 640px) { .app .dock-grid-cell { height: 480px; } .app .dock-grid-cell > .dock-split[data-axis=horizontal] > [data-panel-group] { flex-direction: column; } }
+@media (max-width: 640px) { .app .dock-grid-cell { height: 480px; } }
 @media (prefers-reduced-motion: reduce) { .station-hold-progress { animation-duration: 0ms !important; } .station-presentation *, .station-carousel { scroll-behavior: auto !important; } }

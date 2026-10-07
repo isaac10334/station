@@ -1,6 +1,6 @@
 # Station
 
-A local Bun server and a Component focused web workbench. Workspace data and capability grants are saved in browser `localStorage`; the server builds Component source in Vercel Sandbox and stores verified artifact bytes locally by hash.
+A local, self-extending workspace for units, built-in widgets, authored web content and WebAssembly Components. Workspace data and capability grants are saved in browser `localStorage`; the Bun server builds Component source in Vercel Sandbox and stores verified artifact bytes locally by hash.
 
 ## Run
 
@@ -13,7 +13,8 @@ Open <http://127.0.0.1:3000/>. `server.ts` uses Bun's HTML route, so it bundles 
 
 ## What works
 
-- One unit kind: a Rust **Component** with a multi file Cargo/WIT source project.
+- Rust **Component** units with multi-file Cargo/WIT projects, and authored HTML web content with isolated iframe previews.
+- One widget-instance system across bento slots, editor/browser views, nested Layout tabs/carousels, docks and floating presentations. Dedicated hold handles and keyboard movement use the same validated tree. Backing splits resize with pointer or keyboard; layout operations support undo/redo. Search definitions to create a new instance, or existing instances to move one.
 - The `Greeting` sample embeds editable Rust/WIT source. Its P3 world exports `async run(input)`, consumes a host future and stream, and imports a P3 monotonic clock plus logging and a plain text surface.
 - Polyengine 0.6.7 translates verified Component bytes at runtime inside a one-shot worker. The four WIT grants cover logging, the async feed, text surface, and P3 clock. Minimal WASI providers expose no filesystem preopens, environment variables, or network provider.
 - The browser editor saves source edits per workspace and marks the previous artifact out of date. The Artifact page builds one unit in a fresh Vercel Sandbox, verifies its bytes, and offers a download. A build response is discarded if the source changed while it ran. The Run tab has been verified in Chromium with a fresh P3 Sandbox build and visible future, stream, log, and text effects.

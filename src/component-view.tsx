@@ -5,11 +5,11 @@
  * @example
  * <ComponentView unit={unit} workspaceId={workspace.id} onRestore={openRestoreDialog} />
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { basicSetup, EditorView } from "codemirror";
 import { indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
-import { Prec } from "@codemirror/state";
+import { Annotation, Prec, Transaction } from "@codemirror/state";
 import { rust } from "@codemirror/lang-rust";
 import { Code2, Package, Play, RotateCcw, ShieldCheck, Terminal } from "lucide-react";
 import { Tabs, TabsList, TabsPanel, TabsPanels, TabsTab } from "@/components/ui/tabs";
@@ -20,22 +20,30 @@ import { REQUIRED_GRANTS } from "./component-contract";
 import type { RunResult } from "./component-runtime";
 
 /** The editor keeps one view per file; edits update the workspace store immediately. */
+const sourceSync = Annotation.define<boolean>();
 function SourceEditor({ unit, path }: { unit: ComponentUnit; path: string }) {
   const holder = useRef<HTMLDivElement>(null);
+  const currentEditor = useRef<EditorView | null>(null);
   useEffect(() => {
     if (!holder.current) return;
     const editor = new EditorView({ doc: unit.files[path] ?? "", extensions: [
       basicSetup, Prec.highest(keymap.of([indentWithTab])), ...(path.endsWith(".rs") ? [rust()] : []),
       EditorView.lineWrapping,
-      EditorView.updateListener.of((update) => { if (update.docChanged) deps.store.editFile(unit.id, path, update.state.doc.toString()); }),
+      EditorView.updateListener.of((update) => { if (update.docChanged && !update.transactions.some((transaction) => transaction.annotation(sourceSync))) deps.store.editFile(unit.id, path, update.state.doc.toString()); }),
     ], parent: holder.current });
-    return () => editor.destroy();
+    currentEditor.current = editor;
+    return () => { currentEditor.current = null; editor.destroy(); };
   }, [unit.instanceId, path]);
+  useEffect(() => {
+    const editor = currentEditor.current, source = unit.files[path] ?? "";
+    if (editor && editor.state.doc.toString() !== source) editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: source }, annotations: [sourceSync.of(true), Transaction.addToHistory.of(false)] });
+  }, [unit.files[path], path, unit.instanceId]);
   return <div className="source-editor" ref={holder} />;
 }
 
 /** A focusable Component panel with local section state; split views remain independent. */
 export function ComponentView({ unit, workspaceId, onRestore, runRequest }: { unit: ComponentUnit; workspaceId: string; onRestore: (unitId: string) => void; runRequest?: number }) {
+  const inputId = useId();
   const [section, setSection] = useState("overview");
   useEffect(() => { if (runRequest !== undefined) setSection("run"); }, [runRequest]);
   const [file, setFile] = useState("src/lib.rs");
@@ -91,7 +99,7 @@ export function ComponentView({ unit, workspaceId, onRestore, runRequest }: { un
         <TabsPanel value="run"><div className="component-view-section"><div className="run-grid"><section className="detail-card"><h2><ShieldCheck size={17} /> Capability grants</h2>
           {[{ key: HOST_LOG, label: "Host logging", hint: "Append messages to the run log" }, { key: HOST_FEED, label: "Async input feed", hint: "Supply a future and stream" }, { key: HOST_SURFACE, label: "Text surface", hint: "Write plain text to a bounded surface" }, { key: HOST_CLOCK, label: "P3 monotonic clock", hint: "Read the monotonic clock" }].map(({ key, label, hint }) => <label key={key} className="grant-row"><span><strong>{label}</strong><small><code>{key}</code><br />{hint}</small></span><input type="checkbox" checked={Boolean(unit.grants[key])} onChange={(event) => deps.store.setGrant(unit.id, key, event.currentTarget.checked)} /></label>)}
           <p className="fine-print">WASI filesystem preopens, environment, and network are disabled in the runtime shim.</p></section>
-          <section className="detail-card"><h2><Terminal size={17} /> Invoke run</h2><label className="field-label" htmlFor={`run-${unit.id}`}>Input string</label><input id={`run-${unit.id}`} value={input} onChange={(event) => setInput(event.currentTarget.value)} /><button className="primary" disabled={!runnable || run.busy} onClick={invoke}><Play size={15} />{run.busy ? "Running…" : "Run Component"}</button>{run.busy && <button className="secondary" onClick={() => runController.current?.abort()}>Cancel run</button>}{!runnable && <p className="inline-warning">Build the current source to run this Component.</p>}</section></div>
+          <section className="detail-card"><h2><Terminal size={17} /> Invoke run</h2><label className="field-label" htmlFor={inputId}>Input string</label><input id={inputId} value={input} onChange={(event) => setInput(event.currentTarget.value)} /><button className="primary" disabled={!runnable || run.busy} onClick={invoke}><Play size={15} />{run.busy ? "Running…" : "Run Component"}</button>{run.busy && <button className="secondary" onClick={() => runController.current?.abort()}>Cancel run</button>}{!runnable && <p className="inline-warning">Build the current source to run this Component.</p>}</section></div>
           {(run.result || run.error) && <section className="result-card"><div className="section-title"><h2>Result</h2>{run.result && <span>{run.result.durationMs} ms</span>}</div>{run.error ? <pre className="error">{run.error}</pre> : <><pre>{run.result?.output}</pre><div className="plugin-surface"><div className="log-label">COMPONENT SURFACE · PLAIN TEXT</div><div>{run.result?.surfaceText || "(nothing drawn)"}</div></div><div className="log-label">HOST LOG</div><pre>{run.result?.logs.join("\n") || "(no messages)"}</pre>{run.result && <details className="fine-print"><summary>Run timings</summary><pre>{JSON.stringify(run.result.timings, null, 2)}</pre></details>}</>}</section>}
         </div></TabsPanel>
       </TabsPanels>

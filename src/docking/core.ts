@@ -57,6 +57,7 @@ export type Command =
   | { type: "addSlot"; surface: Surface; ownerId?: string }
   | { type: "removeSlot"; nodeId: string }
   | { type: "createWidget"; widget: WidgetId; target: Target; id?: string }
+  | { type: "createUnitView"; unitId: string; target: Target; id?: string }
   | { type: "openUnit"; unitId: string; target?: Target }
   | { type: "createWebWidget"; unitId: string; id?: string; target?: Target }
   | { type: "move"; panelId: string; target: Target }
@@ -201,7 +202,7 @@ function without(node: Node | null, panelId: string): Node | null {
 }
 function insert(root: Node | null, panelId: string, target: Target): Node | null {
   if (target.surface === "dashboard" && !target.ownerId && (target.intent === "append" && !target.nodeId || root?.kind === "grid" && target.intent === "tab")) {
-    const grid: Grid = root?.kind === "grid" ? root : { kind: "grid", id: "grid:dashboard", cells: [] };
+    const grid: Grid = root?.kind === "grid" ? root : { kind: "grid", id: root ? uid("grid") : "grid:dashboard", cells: root ? [{ id: uid("cell"), node: root }] : [] };
     if (target.intent === "tab" && target.nodeId) return rewrite(grid, (node) => node.kind === "stack" && node.id === target.nodeId
       ? { ...node, tabs: [...node.tabs.slice(0, target.index ?? node.tabs.length), panelId, ...node.tabs.slice(target.index ?? node.tabs.length)], active: panelId } : node);
     const cells = [...grid.cells];
@@ -249,21 +250,14 @@ export function dropReason(layout: DockLayout, panel: Panel, target: Target, pol
     if (descendants(layout, other.id).includes(panel.id) || descendants(layout, panel.id).includes(other.id)) return "Cannot swap a Layout with its descendant";
     return placementReason(other, { ...source.target, intent: "tab" }, policy);
   }
-  const current = panelSurface(layout, panel.id);
   const leaves = leafStacks(targetRoot(layout, target));
-  if (target.surface === "dashboard" && target.intent === "append" && leaves >= policy.dashboard.maxLeafStacks) {
-    let freesLeaf = false;
-    visitNode(layout.surfaces.dashboard, (node) => { if (node.kind === "stack" && node.tabs.length === 1 && node.tabs[0] === panel.id) freesLeaf = true; });
-    if (!freesLeaf) return `dashboard allows at most ${policy.dashboard.maxLeafStacks} widget slots`;
-  }
   const targetPolicy = target.ownerId ? policy.dashboard : policy[target.surface];
+  let freesLeaf = false;
+  visitNode(targetRoot(layout, target), (node) => { if (node.kind === "stack" && !node.keepEmpty && node.tabs.length === 1 && node.tabs[0] === panel.id) freesLeaf = true; });
+  if (target.surface === "dashboard" && !target.ownerId && target.intent === "append" && leaves >= targetPolicy.maxLeafStacks && !freesLeaf) return `dashboard allows at most ${targetPolicy.maxLeafStacks} widget slots`;
   const splits = !["append", "tab", "swap"].includes(target.intent) || target.intent === "append" && target.surface !== "dashboard" && leaves > 0 && targetRoot(layout, target)?.kind !== "stack" && !target.nodeId;
   if (splits && !targetPolicy.split) return `${target.surface} cannot split`;
-  if (splits && leaves >= targetPolicy.maxLeafStacks && current !== target.surface) return `${target.surface} allows at most ${targetPolicy.maxLeafStacks} stacks`;
-  if (splits && leaves >= targetPolicy.maxLeafStacks && current === target.surface) {
-    const source = Object.values(layout.surfaces).some((root) => { let single = false; visitNode(root, (node) => { if (node.kind === "stack" && node.tabs.length === 1 && node.tabs[0] === panel.id) single = true; }); return single; });
-    if (!source) return `${target.surface} allows at most ${targetPolicy.maxLeafStacks} stacks`;
-  }
+  if (splits && leaves >= targetPolicy.maxLeafStacks && !freesLeaf) return `${target.surface} allows at most ${targetPolicy.maxLeafStacks} stacks`;
   if (target.nodeId && panelSurface(layout, panel.id)) {
     let remains = false;
     visitNode(without(targetRoot(layout, target), panel.id), (node) => { if (node.id === target.nodeId) remains = true; });
@@ -289,8 +283,8 @@ function reduceDockCommand(layout: DockLayout, command: Command, policy: DockPol
     const target: Target = { surface: command.surface, ownerId: command.ownerId, intent: "append" };
     if (command.surface !== "dashboard" && !command.ownerId) return reject("Add slots on the dashboard or in a Layout");
     const root = targetRoot(layout, target);
-    if (!root || leafStacks(root) >= (command.ownerId ? policy.dashboard : policy[command.surface]).maxLeafStacks) return reject("Container missing or slot limit reached");
-    const node: Node = root.kind === "grid" ? { ...root, cells: [...root.cells, { id: uid("cell"), node: emptySlot() }] }
+    if (command.ownerId && !root || leafStacks(root) >= (command.ownerId ? policy.dashboard : policy[command.surface]).maxLeafStacks) return reject("Container missing or slot limit reached");
+    const node: Node = !root ? { kind: "grid", id: uid("grid"), cells: [{ id: uid("cell"), node: emptySlot() }] } : root.kind === "grid" ? { ...root, cells: [...root.cells, { id: uid("cell"), node: emptySlot() }] }
       : { kind: "split", id: uid("split"), axis: "horizontal", ratio: .5, first: root, second: emptySlot() };
     return { ok: true, layout: setTargetRoot(layout, target, node) };
   }
@@ -309,6 +303,7 @@ function reduceDockCommand(layout: DockLayout, command: Command, policy: DockPol
   if (command.type === "moveFloat") {
     const item = layout.floating[command.panelId];
     if (!item || !Number.isFinite(command.x) || !Number.isFinite(command.y)) return reject("Floating panel does not exist");
+    if (item.x === Math.max(0, command.x) && item.y === Math.max(0, command.y)) return { ok: true, layout };
     return { ok: true, layout: { ...layout, floating: { ...layout.floating, [command.panelId]: { ...item, x: Math.max(0, command.x), y: Math.max(0, command.y) } } } };
   }
   if (command.type === "float") {
@@ -324,8 +319,7 @@ function reduceDockCommand(layout: DockLayout, command: Command, policy: DockPol
     const target = command.target ?? { surface: floated.returnTo, intent: "append" };
     const reason = dropReason(layout, panel, target, policy);
     if (reason) return reject(reason);
-    const floating = { ...layout.floating }; delete floating[panel.id];
-    return reduceDock({ ...layout, floating: layout.floating }, { type: "move", panelId: panel.id, target }, policy);
+    return reduceDock(layout, { type: "move", panelId: panel.id, target }, policy);
   }
   if (command.type === "browserView") return { ok: true, layout: { ...layout, browserView: command.view === "list" ? "list" : "grid" } };
   if (command.type === "resizeBottom") return Number.isFinite(command.size)
@@ -374,6 +368,11 @@ function reduceDockCommand(layout: DockLayout, command: Command, policy: DockPol
     if (layout.panels[id]) return reject("Panel ID already exists");
     panel = { id, kind: "web-widget", unitId: command.unitId, tags: ["widget"] };
     target = command.target ?? { surface: "dashboard", intent: "append" };
+  } else if (command.type === "createUnitView") {
+    if (!command.unitId) return reject("Unit ID is required");
+    const id = command.id ?? uid("unit-view");
+    if (layout.panels[id]) return reject("Panel ID already exists");
+    panel = { id, kind: "unit", unitId: command.unitId, tags: ["view"] }; target = command.target;
   } else if (command.type === "createWidget") {
     if (!isWidget(command.widget)) return reject("Unknown widget");
     const id = command.id ?? uid("widget");
@@ -397,7 +396,6 @@ function reduceDockCommand(layout: DockLayout, command: Command, policy: DockPol
   if (reason) return reject(reason);
   if (target.intent === "swap") {
     const destination = findNode(layout, target.nodeId!) as Stack;
-    const source = panelSlot(layout, panel.id)!;
     const other = destination.tabs[0];
     return { ok: true, layout: mapRoots(layout, (root) => rewrite(root, (node) => node.kind === "stack"
       ? { ...node, tabs: node.tabs.map((id) => id === panel.id ? other : id === other ? panel.id : id), active: node.active === panel.id ? other : node.active === other ? panel.id : node.active } : node)), panelId: panel.id };

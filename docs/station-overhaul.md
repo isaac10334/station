@@ -27,3 +27,32 @@ Stage 1: product/package renamed; compatibility strings retained. Typecheck and 
 Stage 2: v4 dock migration, owned Layout subtrees, persistent empty slots, bento backing rows, atomic swap/split/add/remove commands and child promotion are implemented. 33 tests, typecheck and build pass. Browser reload preserves prior IDs and displays migrated split rows. Legacy test corrected to reject the previously removed starter definition.
 
 Stage 3: shared definition browser, real Layout children, asymmetric backing rows, dedicated 400 ms handles, cross-container keyboard navigation, transient full-slot previews and persistent presentation DOM are implemented. Typecheck/build and 36 model/runtime tests pass. Browser verified definition search and child creation, cycle rejection, early release/tolerance cancellation, keyboard pickup/Escape, unequal-slot swap/undo and pointer/keyboard resizing with retained divider focus. Broader transfer, iframe and breakpoint checks follow in the final stage.
+
+Stage 4: definition/provider/renderer metadata now includes authored web and additional editor views. Source synchronization between editor instances avoids duplicate revisions, and content deletion removes all views. Inactive child keyboard reorder/transfer, pointer transfers into/out of Layout tabs, slot split/remove/undo/redo, normalized pointer/keyboard resize, floating transfer/reposition/history, iframe counter continuity and editor section/source retention passed browser checks. Reload retains IDs, owned subtrees, geometry, presentation mode and ordering; session history/visibility intentionally reset. An authored verification counter and real Clock/Snake children demonstrate composition; temporary editor and empty test slots were removed, and the initial 60/40 ratio restored.
+
+Mouse and pen hold/cancel passed in the built-in browser; touch hold/cancel passed in Edge because the built-in browser does not expose touch dispatch. Keyboard targets are explicitly selected within the same coordinator, including tab insertion boundaries and readable rejected targets. Native horizontal wheel browsing changes real carousel children without starting a dock drag. Game arrows and authored iframe buttons remain usable. Light/dark, 375/768/1024/1440 widths and reduced motion were checked; no page-wide horizontal overflow was observed. Mobile navigation, clipped target rejection, carousel resize alignment, management focus and presentation layer stacking were corrected during these checks.
+
+Final checks: 39 tests, typecheck and standalone build. `build:component` also passed a real pinned P3 build/inspection/invocation: 98,535 bytes, SHA-256 `3066f97957e7c77f8415c848ba686cb7205991bd4a71375a3d12d8676bded199`, output `Hello, World!`. This verifies the local sample source, not an automatic rebuild of older browser-stored unit source. Storage keys, source/grant/build boundaries, serialized IDs and artifact contracts are retained.
+
+## Remaining bounds and next stage
+
+Host row extents remain 380 px / 480 px on narrow screens; split ratios resize their slots. Independently resizable row extents and floating window size controls need an explicit geometry contract if added. Swap is defined for two occupied single-instance slots; multi-child stacks reorder/join instead. Inactive instances keep their services running; there is no generic provider suspension protocol. Catalog metadata is extensible, but asset/provider installation and marketplace authority remain future work. The next product stage is the asset overhaul; no asset model, remote repository or deployment was introduced here.
+
+## Checkout rename / reopen
+
+Keep the checkout at `unit-workspace` during this chat: Codex and the active Bun watcher reference its current path. After reviewing, stop `bun run dev` with Ctrl+C and close this checkout in Codex/other editors. The destination `C:\Users\ijhar\Desktop\station` currently exists as an empty directory. The first command below removes it only if it is still empty; it throws if content has appeared, leaving that content intact.
+
+```powershell
+Set-Location C:\Users\ijhar\Desktop
+if (Test-Path -LiteralPath C:\Users\ijhar\Desktop\station) { [IO.Directory]::Delete('C:\Users\ijhar\Desktop\station', $false) }
+Rename-Item -LiteralPath C:\Users\ijhar\Desktop\unit-workspace -NewName station
+```
+
+Reopen `C:\Users\ijhar\Desktop\station` in Codex, keep the `station-overhaul` branch, and run:
+
+```powershell
+Set-Location C:\Users\ijhar\Desktop\station
+bun run dev
+```
+
+Use the same browser origin (`http://localhost:3000/` here) to retain localStorage; `127.0.0.1` has separate browser storage. The external Loop Kit links still point to `C:/src/ilt/loop`; no remote repository rename or creation is involved.

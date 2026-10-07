@@ -211,19 +211,6 @@
 .app .dashboard-heading h1 { font-size: clamp(24px, 2.7vw, 38px); }
 .app .dash-widget-head h2 { font-size: 16px; }
 .app .widget-catalog-trigger { width: 34px; height: 34px; padding: 0; gap: 1px; }
-.widget-catalog-popover { width: min(520px, calc(100vw - 24px)); padding: 16px; z-index: var(--z-popover); }
-.widget-catalog-heading { display: flex; flex-direction: column; gap: 3px; }
-.widget-catalog-heading strong { font-size: 14px; }
-.widget-catalog-heading span, .widget-catalog-hint { color: var(--fg-3); font-size: 11px; line-height: 1.45; }
-.widget-catalog-popover .widget-library-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px 0; }
-.widget-catalog-popover .widget-library-tile { min-width: 0; }
-.widget-catalog-popover .dock-catalog-item { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 6px; width: 100%; min-height: 140px; padding: 12px; border: 0; background: transparent; color: var(--fg); text-align: left; touch-action: none; cursor: grab; }
-.widget-catalog-popover .dock-catalog-item svg { margin-bottom: auto; }
-.widget-catalog-popover .dock-catalog-item:hover { background: var(--hover); }
-.widget-catalog-popover .dock-catalog-item[data-dragging] { opacity: .4; }
-.widget-catalog-popover .dock-catalog-item strong { font-size: 12px; line-height: 1.2; }
-.widget-catalog-popover .dock-catalog-item small { color: var(--fg-3); font-size: 11px; line-height: 1.35; }
-.widget-catalog-hint { margin: 0; }
 .dock-drag-ghost { display: flex; align-items: center; gap: 9px; min-width: 145px; max-width: 250px; padding: 9px 12px; border: 1px solid var(--fg-4); border-radius: 9px; background: var(--raised); color: var(--fg); box-shadow: var(--shadow-pop); font-size: 12px; pointer-events: none; }
 .dock-drag-ghost-icon { display: grid; place-items: center; color: var(--fg-2); }
 .dock-drag-hint { margin-left: auto; color: var(--fg-3); font-size: 10px; white-space: nowrap; }
@@ -314,5 +301,4 @@
 @container (max-width: 740px) { .unit-browser:not(.is-compact) .unit-browser-toolbar { display: flex; } .unit-browser:not(.is-compact) .unit-browser-location { display: none; } .unit-browser:not(.is-compact) .unit-browser-toolbar .unit-browser-search { flex: 1 1 0; } .unit-browser:not(.is-compact) .unit-browser-toolbar .unit-browser-controls { flex: none; } .unit-browser:not(.is-compact) .unit-browser-toolbar .unit-browser-controls > :not(.unit-browser-new):not(.unit-browser-actions) { display: none; } }
 @media (max-width: 768px) { .app .dock-grid { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .app .dock-surface-sidebar { display: none; } .app .panel-nav { padding-inline: 10px; } .app .dock-stack-main .dock-stack-body > .dashboard, .app .dock-stack-main .dock-stack-body > .component-view { padding: 16px; } .app .dock-grid { grid-template-columns: 1fr; } .dock-bottom-edge { left: 0; right: 0; } }
-@media (max-width: 560px) { .widget-catalog-popover .widget-library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .dock-stack-tab[data-wiggle] { animation: none; } .dock-drop-zone { transition: none; } }
