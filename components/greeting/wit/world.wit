@@ -1,0 +1,17 @@
+package unit:workspace@0.3.0;
+
+interface host {
+    log: func(message: string);
+    feed: func(input: string) -> tuple<stream<u8>, future<u32>>;
+}
+
+interface surface {
+    set-text: func(text: string);
+}
+
+world component {
+    import host;
+    import surface;
+    import wasi:clocks/monotonic-clock@0.3.1;
+    export run: async func(input: string) -> string;
+}

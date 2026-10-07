@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.artifacts/
+.vercel/
+.env.local
+components/greeting/target/
+components/greeting/inline/
+components/greeting/transpiled/
+components/greeting/*.wasm
+components/greeting/.git/
+/greeting/
+
+.vercel
+.env*.local

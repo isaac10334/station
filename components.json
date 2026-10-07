@@ -1,0 +1,26 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "css": "src/tailwind.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "registries": {
+    "@wigggle-ui": "https://wigggle-ui.vercel.app/r/{name}.json",
+    "@spaceui": "https://www.spaceui.one/r/{name}.json",
+    "@stealth": "https://stealth.pm/r/{name}.json",
+    "@fonttrio": "https://www.fonttrio.xyz/r/{name}.json",
+    "@sureui": "https://sureui.com/r/{name}.json",
+    "@gamekitui": "https://www.gamekitui.com/r/{name}.json"
+  }
+}

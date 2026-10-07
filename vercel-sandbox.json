@@ -1,0 +1,6 @@
+{
+  "teamId": "team_JVoYCgv0HQNBHmoIKBk25D4j",
+  "projectId": "prj_My7GAEBPFmWJDLjBAFHAjzhV3sv1",
+  "snapshotId": "snap_FAb2HBLqJxXmgjb1XUbIvgRm82eF",
+  "toolchain": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\ncargo 1.100.0-nightly (3c0b53475 2026-09-04)\nwasm32-wasip2\nwit-bindgen 0.60.0; wasi-clocks 0.3.1"
+}
