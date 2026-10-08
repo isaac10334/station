@@ -246,6 +246,9 @@
   .top-0 {
     top: 0px;
   }
+  .top-0\.5 {
+    top: calc(var(--spacing) * 0.5);
+  }
   .top-1\! {
     top: var(--spacing) !important;
   }
@@ -2226,6 +2229,17 @@
     .group-hover\/row\:opacity-100:is(:where(.group\/row):hover *) {
       opacity: 100%;
     }
+    .group-hover\/switch\:bg-fg-3:is(:where(.group\/switch):hover *) {
+      background-color: var(--fg-3);
+    }
+    .group-hover\/switch\:bg-fg\/90:is(:where(.group\/switch):hover *) {
+      background-color: var(--fg);
+    }
+    @supports (color: color-mix(in lab, red, red)) {
+      .group-hover\/switch\:bg-fg\/90:is(:where(.group\/switch):hover *) {
+        background-color: color-mix(in oklab, var(--fg) 90%, transparent);
+      }
+    }
     .group-hover\/tab\:text-fg-3:is(:where(.group\/tab):hover *) {
       color: var(--fg-3);
     }
@@ -2538,6 +2552,22 @@
     content: var(--tw-content);
     inset: 0px;
   }
+  .after\:-inset-x-1::after {
+    content: var(--tw-content);
+    inset-inline: calc(var(--spacing) * -1);
+  }
+  .after\:-inset-x-2::after {
+    content: var(--tw-content);
+    inset-inline: calc(var(--spacing) * -2);
+  }
+  .after\:-inset-y-3::after {
+    content: var(--tw-content);
+    inset-block: calc(var(--spacing) * -3);
+  }
+  .after\:-inset-y-3\.5::after {
+    content: var(--tw-content);
+    inset-block: calc(var(--spacing) * -3.5);
+  }
   .after\:rounded-\[inherit\]::after {
     content: var(--tw-content);
     border-radius: inherit;
@@ -2644,6 +2674,9 @@
       .hover\:bg-destructive\/90:hover {
         background-color: color-mix(in oklab, var(--destructive) 90%, transparent);
       }
+    }
+    .hover\:bg-fg-3:hover {
+      background-color: var(--fg-3);
     }
     .hover\:bg-fg-4:hover {
       background-color: var(--fg-4);
@@ -2874,6 +2907,9 @@
   }
   :where(:is([data-has-selection])) .in-\[\[data-has-selection\]\]\:opacity-100 {
     opacity: 100%;
+  }
+  .has-\[\[data-disabled\]\]\:opacity-50:has(:is([data-disabled])) {
+    opacity: 50%;
   }
   .has-\[\[data-lead\]\]\:ps-2:has(:is([data-lead])) {
     padding-inline-start: calc(var(--spacing) * 2);
@@ -3521,6 +3557,12 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
+  .dark\:bg-fg-2:is(.dark *) {
+    background-color: var(--fg-2);
+  }
+  .dark\:text-frame:is(.dark *) {
+    color: var(--frame);
+  }
   @media (pointer: coarse) {
     .pointer-coarse\:invisible {
       visibility: hidden;
@@ -3984,7 +4026,7 @@ body {
   height: 100%;
   color: var(--fg-3);
 }
-.app .dock-hidden-message button, .dock-inspector button, .dock-float-header button {
+.app .dock-hidden-message button, .dock-float-header button {
   border: 1px solid var(--line-2);
   border-radius: 6px;
   padding: 5px 8px;
@@ -4048,52 +4090,7 @@ body {
   flex: 1;
   overflow: auto;
 }
-.dock-inspector {
-  position: fixed;
-  z-index: 45;
-  top: 16px;
-  right: 16px;
-  width: min(380px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--line-2);
-  border-radius: 10px;
-  background: var(--raised);
-  box-shadow: var(--shadow-pop);
-  color: var(--fg);
-}
-.dock-inspector header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line-2);
-}
-.dock-inspector-scroll {
-  overflow: auto;
-  padding: 10px 12px;
-}
-.dock-inspector h3 {
-  font-size: 13px;
-  margin: 12px 0 4px;
-  text-transform: capitalize;
-}
-.dock-inspector small, .dock-inspector-node span {
-  color: var(--fg-3);
-  font-size: 10px;
-}
-.dock-inspector-node {
-  padding-block: 2px;
-  font-size: 11px;
-}
-.dock-inspector-panel button {
-  border: 0;
-  padding: 2px 4px;
-  background: transparent;
-  font-size: 11px;
-}
-.app .dock-stack-body, .dock-float-body, .dock-inspector-scroll {
+.app .dock-stack-body, .dock-float-body {
   scrollbar-width: thin;
   scrollbar-color: var(--fg-4) transparent;
 }
@@ -4676,51 +4673,8 @@ body {
 .dock-grid-insert[data-visible] {
   border-style: dashed;
 }
-.dock-grid-add {
-  position: relative;
-  grid-column: 1 / -1;
-  min-height: 112px;
-  border-color: var(--line-2);
-  border-style: dashed;
-  display: grid;
-  place-items: center;
-}
-.dock-grid-add::after {
-  content: "Drop a widget here";
-  color: var(--fg-3);
-  font-size: 12px;
-  pointer-events: none;
-}
-.dock-grid-add[data-over][data-eligible]::after {
-  color: var(--fg);
-}
 .dock-grid[data-empty] {
   min-height: 220px;
-}
-.dock-grid[data-empty] .dock-grid-add {
-  position: absolute;
-  inset: 0;
-  min-height: 220px;
-}
-.dock-grid[data-empty] .dock-grid-add::after {
-  content: none;
-}
-.dock-grid-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 220px;
-  color: var(--fg-3);
-  font-size: 12px;
-  text-align: center;
-  pointer-events: none;
-}
-.dock-grid-empty strong {
-  color: var(--fg-2);
-  font-size: 14px;
-  font-weight: 600;
 }
 .dock-debug-node {
   position: absolute;

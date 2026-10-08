@@ -31,9 +31,14 @@ body .app .dock-stack-dashboard .dock-stack-body { overflow: hidden; height: 100
 .station-owned-layout .dock-stack-heading { flex-wrap: nowrap; }
 .station-empty-slot { height: 100%; min-height: 80px; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 12px; border: 1px dashed var(--line-2); border-radius: 10px; background: var(--frame); color: var(--fg-3); }
 .station-slot-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.station-slot-controls button, .station-add-slot { border: 1px solid var(--line-2); background: var(--raised); color: var(--fg-2); border-radius: 6px; padding: 6px 8px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
-.station-add-slot { flex: none; }
-.station-drag-handle { position: relative; display: inline-grid; place-items: center; flex: none; width: 28px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--fg-3); cursor: grab; touch-action: none; user-select: none; overflow: hidden; }
+.station-drag-handle { position: relative; display: inline-flex; align-items: center; flex: none; max-width: 100%; height: 30px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--fg-3); font: inherit; white-space: nowrap; text-overflow: ellipsis; cursor: grab; touch-action: none; user-select: none; overflow: hidden; }
+.station-heading-handle { color: var(--fg); font-weight: 600; padding-inline: 0; }
+.dash-widget-head h2 { flex: 1; min-width: 0; }
+.dash-widget-head h2 .station-heading-handle { width: 100%; }
+.dash-widget:has(> .widget-flip > .widget-front > .dash-widget-head [data-pressing]) { box-shadow: inset 0 0 0 1px var(--line-2); }
+.dash-widget:has(> .widget-flip > .widget-front > .dash-widget-head [data-dragging]) { outline: 2px solid var(--fg-3); outline-offset: -2px; }
+.dash-widget:has(> .widget-flip > .widget-front > .dash-widget-head [data-wiggle]) { animation: station-wiggle .28s ease-in-out infinite alternate; }
+@keyframes station-wiggle { from { rotate: -.35deg; } to { rotate: .35deg; } }
 .station-drag-handle[data-pressing] { background: var(--selected); color: var(--fg); border-color: var(--line-2); }
 .station-drag-handle[data-dragging] { background: var(--selected); color: var(--fg); cursor: grabbing; outline: 2px solid var(--fg-3); }
 .station-hold-progress { position: absolute; inset: auto 2px 0; height: 2px; background: var(--fg-2); transform: scaleX(0); transform-origin: left; }
@@ -66,7 +71,40 @@ body .app .dock-stack-dashboard .dock-stack-body { overflow: hidden; height: 100
 .station-destination-preview { position: fixed; z-index: 60; pointer-events: none; border: 2px solid var(--fg-3); border-radius: 10px; background: color-mix(in srgb, var(--selected) 35%, transparent); }
 .station-destination-preview > span { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 16px); padding: 5px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--raised); color: var(--fg); font-size: 11px; }
 .station-destination-preview[data-rejected] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
-@media (hover: hover) { .station-drag-handle:hover, .station-slot-controls button:hover, .station-add-slot:hover { background: var(--hover); color: var(--fg); } }
+@media (hover: hover) { .station-drag-handle:hover, .station-slot-controls button:hover { background: var(--hover); color: var(--fg); } }
 @container (max-width: 280px) { .station-widget-content .weather-hours { grid-template-columns: repeat(3, minmax(0, 1fr)); } .station-widget-content .clock-time { font-size: 28px; } }
 @media (max-width: 640px) { .app .dock-grid-cell { height: 480px; } }
 @media (prefers-reduced-motion: reduce) { .station-hold-progress { animation-duration: 0ms !important; } .station-presentation *, .station-carousel { scroll-behavior: auto !important; } }
+
+/* Quiet controls reveal together, with focus and touch alternatives to hover. */
+.station-slot-controls { opacity: 0; transition: opacity 120ms ease; }
+.station-empty-slot:hover > .station-slot-controls, .station-empty-slot:focus-within > .station-slot-controls { opacity: 1; }
+.station-slot-controls .station-slot-close { position: absolute; top: 8px; right: 8px; }
+.station-slot-controls .station-icon-action, .station-icon-action { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line-2); border-radius: 8px; color: var(--fg-2); background: var(--raised); cursor: pointer; }
+.station-icon-action:active { scale: .94; }
+.station-icon-action:focus-visible, .station-layout-tree summary:focus-visible, .station-tree-instance button:focus-visible { outline: 2px solid var(--fg-3); outline-offset: 2px; }
+.station-tooltip { padding: 6px 9px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--raised); color: var(--fg); font: 12px 'IBM Plex Sans Variable', sans-serif; box-shadow: var(--shadow-pop); }
+.station-add-area { position: relative; grid-column: 1 / -1; display: flex; flex: none; align-items: center; justify-content: center; min-height: 88px; padding-block: 4px; }
+.station-add-morph { position: relative; display: grid; place-items: center; background: var(--raised); color: var(--fg-3); font-size: 12px; opacity: 0; transition: opacity 120ms ease; }
+.station-add-morph > .station-icon-action { border-radius: 50%; }
+.station-add-area:hover .station-add-morph, .station-add-area:focus-within .station-add-morph, .station-add-area[data-drag-active] .station-add-morph { opacity: 1; }
+.station-add-area[data-drag-active] .station-add-morph { border: 1px dashed var(--line-2); }
+.station-add-target { position: absolute; inset: 0; border-radius: inherit; }
+.station-inspector { padding: 12px; font-size: 12px; }
+.station-inspector-settings { display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line-2); }
+.station-tree-surface { display: flex; align-items: center; justify-content: space-between; height: 44px; text-transform: capitalize; }
+.station-tree-surface .station-icon-action { width: 30px; height: 30px; border: 0; background: transparent; }
+.station-layout-tree summary { display: flex; align-items: center; gap: 6px; padding: 6px 4px; cursor: pointer; border-radius: 4px; }
+.station-layout-tree summary::before { content: '›'; width: 12px; color: var(--fg-3); }
+.station-layout-tree details[open] > summary::before { rotate: 90deg; }
+.station-layout-tree summary small { margin-left: auto; color: var(--fg-4); font: 10px var(--font-mono); }
+.station-tree-children { margin-left: 9px; padding-left: 10px; border-left: 1px solid var(--line-2); }
+.station-tree-instance > button { width: 100%; padding: 6px 4px; border: 0; border-radius: 4px; background: transparent; color: var(--fg-2); text-align: left; font-size: 12px; overflow-wrap: anywhere; }
+.station-tree-empty { color: var(--fg-4); margin: 4px 12px; }
+.station-eye-hidden { opacity: .4; }
+@media (hover: hover) { .station-icon-action:hover, .station-layout-tree summary:hover, .station-tree-instance > button:hover { background: var(--hover); color: var(--fg); } }
+@media (hover: none) { .station-slot-controls, .station-add-morph { opacity: 1; } .station-icon-action, .station-slot-controls .station-icon-action { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .dash-widget { animation: none !important; } .station-slot-controls, .station-add-morph { transition: none; } }
+.app .dock-stack-tab:has([data-active]) .station-drag-handle { color: var(--fg); }
+
+.dock-shell-toolbar .station-icon-action { width: 28px; height: 28px; border-color: transparent; background: transparent; }

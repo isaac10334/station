@@ -10,6 +10,7 @@ export const WIDGET_CATALOG = {
   capabilities: { title: "Capability inspector", description: "Inspect and change the selected Component’s explicit grants.", icon: ShieldCheck, renderer: "react", preview: "Logging · feed · text surface · clock" },
   // Serialized `stack` identity is retained. Its renderer is now a real Layout.
   stack: { title: "Layout", description: "Arrange real child widgets in split slots, tabs or a horizontal carousel.", icon: Layers3, renderer: "layout", preview: "Resizable slots · tabs · carousel" },
+  "docking-inspector": { title: "Docking inspector", description: "Explore placements and nested slots; toggle drag diagnostics and motion experiments.", icon: LayoutGrid, renderer: "react", preview: "Layout tree � visibility � drag diagnostics" },
   snake: { title: "Snake", description: "A keyboard game. Focus the game to play.", icon: Activity, renderer: "react", preview: "Arrow keys · score · restart" },
 } satisfies Record<WidgetId, { title: string; description: string; icon: typeof Activity; renderer: string; preview: string }>;
 

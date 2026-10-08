@@ -27,7 +27,7 @@ export const DEFAULT_DOCK_POLICY: DockPolicy = {
 export type WidgetPlacement = { docks: readonly Surface[]; floating: boolean; doubleClick?: "float" | "none" };
 const ordinaryWidget: WidgetPlacement = { docks: ["main", "dashboard", "sidebar", "bottom"], floating: true, doubleClick: "none" };
 export const WIDGET_PLACEMENT = {
-  weather: ordinaryWidget, clock: ordinaryWidget, capabilities: ordinaryWidget, stack: ordinaryWidget, snake: ordinaryWidget,
+  weather: ordinaryWidget, clock: ordinaryWidget, capabilities: ordinaryWidget, stack: ordinaryWidget, snake: ordinaryWidget, "docking-inspector": ordinaryWidget,
 } satisfies Record<WidgetId, WidgetPlacement>;
 export type Panel =
   | { id: string; kind: "home" | "browser" | "navigation"; tags: string[] }

@@ -8,6 +8,20 @@ function apply(layout: DockLayout, command: Command) {
   return result.layout;
 }
 const dashboard = { surface: "dashboard", intent: "append" } as const;
+test("docking inspector is an ordinary movable instance retained by layout recovery", () => {
+  let dock = createDockLayout([]);
+  dock = apply(dock, { type: "createWidget", widget: "stack", id: "layout", target: dashboard });
+  dock = apply(dock, { type: "createWidget", widget: "docking-inspector", id: "inspector", target: { ...dashboard, ownerId: "layout" } });
+  const restored = migrateDock(JSON.parse(JSON.stringify(dock)));
+  expect(restored.panels.inspector).toMatchObject({ widget: "docking-inspector" });
+  expect(descendants(restored, "layout")).toContain("inspector");
+  dock = apply(restored, { type: "float", panelId: "inspector" });
+  expect(dock.floating.inspector).toBeDefined();
+  dock = apply(dock, { type: "dockFloat", panelId: "inspector" });
+  expect(validateDock(dock)).toBeNull();
+  dock = apply(dock, { type: "close", panelId: "inspector" });
+  expect(dock.panels.inspector).toBeUndefined();
+});
 test("additional editor instances share source; removal keeps content; content deletion removes all views", () => {
   const values = new Map<string, string>();
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };

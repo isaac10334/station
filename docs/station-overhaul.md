@@ -34,6 +34,14 @@ Mouse and pen hold/cancel passed in the built-in browser; touch hold/cancel pass
 
 Final checks: 39 tests, typecheck and standalone build. `build:component` also passed a real pinned P3 build/inspection/invocation: 98,535 bytes, SHA-256 `3066f97957e7c77f8415c848ba686cb7205991bd4a71375a3d12d8676bded199`, output `Hello, World!`. This verifies the local sample source, not an automatic rebuild of older browser-stored unit source. Storage keys, source/grant/build boundaries, serialized IDs and artifact contracts are retained.
 
+## UI refinement follow-up
+
+Empty slots use tooltip icon actions revealed by hover/focus, with removal at the top right and always-visible touch controls. Widget headings and tab titles replace grip icons as the deliberate 400 ms pickup targets. Pickup highlights the widget; the inspector's optional wiggle experiment lasts only during movement and respects reduced motion. The add-slot area has idle, hover/focus and active-drag states; Motion expands its round plus into a destination without a persistent drop hint.
+
+The docking inspector is now a catalog widget with ordinary placement, a native disclosure tree of surfaces/slots/owned children/floats, animated lucide-animated visibility icons, and locally owned Stealth switches for shared session diagnostics and wiggle. A tooltip toolbar icon and command palette focus the existing inspector or create one. No second placement or gesture system was introduced.
+
+Verification: early heading release, full hold, Escape, keyboard pickup/navigation/commit/undo, inactive tab pickup, disclosure persistence during switch changes, live diagnostics on/off, icon visibility actions, opt-in wiggle and reduced-motion suppression passed in the built-in browser. Hover/focus tooltips and top-right slot removal geometry were checked. Layouts at 375, 768, 1024 and 1440 px and both themes were checked. The Bun watcher was restarted after its stale new-file alias cache; the compiled build resolved all imports normally. Model recovery coverage includes the new inspector definition. All 40 tests, typecheck and build pass. Tooltip icon add/split/remove actions and the round add-slot action were exercised with undo restoring the prior layout; inspector bottom visibility also collapses its backing presentation.
+
 ## Remaining bounds and next stage
 
 Host row extents remain 380 px / 480 px on narrow screens; split ratios resize their slots. Independently resizable row extents and floating window size controls need an explicit geometry contract if added. Swap is defined for two occupied single-instance slots; multi-child stacks reorder/join instead. Inactive instances keep their services running; there is no generic provider suspension protocol. Catalog metadata is extensible, but asset/provider installation and marketplace authority remain future work. The next product stage is the asset overhaul; no asset model, remote repository or deployment was introduced here.

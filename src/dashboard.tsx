@@ -1,3 +1,4 @@
+import { DockInspector } from "./docking/inspector";
 /**
  * The dashboard renders widget instances from the controlled dock document.
  * Catalog drops create instances; each widget's back configures only its own slot.
@@ -51,7 +52,7 @@ export function DockWebWidget({ panel, workspace, onOpen }: { panel: Extract<Pan
   return <section ref={section} className="dash-widget dash-widget-standard web-unit-widget" aria-label={`${unit.name} web widget`}>
     <motion.div className="widget-flip" animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }} transition={{ duration: reducedMotion ? 0 : .46, ease: [0.2, 0.8, 0.2, 1] }}>
     <div className="widget-face widget-front" aria-hidden={flipped} inert={flipped}>
-      <div className="dash-widget-head"><WidgetDragHandle panelId={panel.id} title={unit.name} /><h2>{unit.name}</h2><button type="button" className="widget-settings-trigger" aria-label={`Manage ${unit.name}`} title="Manage widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button></div>
+      <div className="dash-widget-head"><h2><WidgetDragHandle panelId={panel.id} title={unit.name} heading /></h2><button type="button" className="widget-settings-trigger" aria-label={`Manage ${unit.name}`} title="Manage widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button></div>
       <iframe title={`${unit.name} dashboard widget`} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={webContentDocument(unit.html)} />
     </div>
     <div className="widget-face widget-back" aria-hidden={!flipped} inert={!flipped} style={{ transform: reducedMotion ? "none" : "rotateY(180deg)", visibility: reducedMotion ? flipped ? "visible" : "hidden" : undefined }}>
@@ -72,10 +73,10 @@ export function DockWidget({ panel, workspace, actions }: { panel: Extract<Panel
   return <section ref={section} className={`dash-widget dash-widget-${panel.size} widget-tone-${panel.tone ?? (panel.widget === "weather" ? "blue" : panel.widget === "clock" ? "violet" : panel.widget === "stack" ? "coral" : "mint")}`} aria-label={`${item.title} widget`}>
     <motion.div className="widget-flip" animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }} transition={{ duration: reducedMotion ? 0 : .46, ease: [0.2, 0.8, 0.2, 1] }}>
     <div className="widget-face widget-front" aria-hidden={flipped} inert={flipped}>
-    <div className="dash-widget-head"><WidgetDragHandle panelId={panel.id} title={item.title} /><h2>{item.title}</h2>
+    <div className="dash-widget-head"><h2><WidgetDragHandle panelId={panel.id} title={item.title} heading /></h2>
       <button type="button" className="widget-settings-trigger" aria-label={`Customize ${item.title}`} title="Customize widget" onClick={() => setFlipped(true)}><FlipHorizontal2 size={17} /></button>
     </div>
-    <div className="station-widget-content">{panel.widget === "stack" ? <DockOwnedLayout ownerId={panel.id} /> : <WidgetView id={panel.widget} workspace={workspace} actions={actions} />}</div>
+    <div className="station-widget-content">{panel.widget === "stack" ? <DockOwnedLayout ownerId={panel.id} /> : panel.widget === "docking-inspector" ? <DockInspector /> : <WidgetView id={panel.widget} workspace={workspace} actions={actions} />}</div>
     </div>
     <div className="widget-face widget-back" aria-hidden={!flipped} inert={!flipped} style={{ transform: reducedMotion ? "none" : "rotateY(180deg)", visibility: reducedMotion ? flipped ? "visible" : "hidden" : undefined }}>
       <div className="widget-back-head"><h2>{item.title} settings</h2><button type="button" onClick={() => setFlipped(false)} aria-label="Return to widget" title="Return to widget"><RotateCcw size={16} /></button></div>

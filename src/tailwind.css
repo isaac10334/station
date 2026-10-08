@@ -105,7 +105,7 @@
 .app[data-sidebar-side="right"] .app-sidebar-dock { inset: 0 0 0 auto; }
 .app[data-sidebar-hidden] .work-area { margin-left: 0; margin-right: 0; }
 .app .dock-hidden-message { display: flex; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--fg-3); }
-.app .dock-hidden-message button, .dock-inspector button, .dock-float-header button { border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 8px; background: var(--raised); color: var(--fg); }
+.app .dock-hidden-message button, .dock-float-header button { border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 8px; background: var(--raised); color: var(--fg); }
 .dock-search-results { display: flex; flex-direction: column; max-height: 45vh; overflow: auto; margin-top: 12px; }
 .dock-search-results button { min-height: 36px; border: 0; border-radius: 6px; padding: 8px; text-align: left; background: transparent; color: var(--fg); }
 .dock-search-results button:hover, .dock-search-results button:focus-visible { background: var(--hover); }
@@ -114,14 +114,7 @@
 .dock-float-header { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 12px; background: var(--frame); cursor: grab; touch-action: none; }
 .dock-float-header strong { font-size: 12px; text-transform: capitalize; }
 .dock-float-body { min-height: 0; flex: 1; overflow: auto; }
-.dock-inspector { position: fixed; z-index: 45; top: 16px; right: 16px; width: min(380px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow-pop); color: var(--fg); }
-.dock-inspector header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
-.dock-inspector-scroll { overflow: auto; padding: 10px 12px; }
-.dock-inspector h3 { font-size: 13px; margin: 12px 0 4px; text-transform: capitalize; }
-.dock-inspector small, .dock-inspector-node span { color: var(--fg-3); font-size: 10px; }
-.dock-inspector-node { padding-block: 2px; font-size: 11px; }
-.dock-inspector-panel button { border: 0; padding: 2px 4px; background: transparent; font-size: 11px; }
-.app .dock-stack-body, .dock-float-body, .dock-inspector-scroll { scrollbar-width: thin; scrollbar-color: var(--fg-4) transparent; }
+.app .dock-stack-body, .dock-float-body { scrollbar-width: thin; scrollbar-color: var(--fg-4) transparent; }
 @media (max-width: 720px) { .app .app-sidebar-dock { display: none; } .app .dock-search-button { min-width: 28px; width: 28px; overflow: hidden; white-space: nowrap; padding: 0 6px; } .app .dock-search-button span { display: none; } .app .dock-shell-toolbar { padding-inline: 6px; gap: 2px; overflow-x: auto; scrollbar-width: none; } .app .dock-shell-toolbar .icon-button { flex: none; } .app .dock-shell-toolbar .dock-mobile-secondary { display: none; } }
 @media (prefers-reduced-motion: reduce) { .app .dock-stack-tab, .dock-mobile-tab { animation: none !important; transition: none !important; } }
 .app-sidebar [data-workspace-switcher] span { margin-left: 0; }
@@ -235,14 +228,7 @@
 .dock-zone-bottom { inset: auto 0 0 0; height: 20%; }
 .dock-grid-insert { inset: 0 auto 0 -7px; width: 14px; z-index: 6; }
 .dock-grid-insert[data-visible] { border-style: dashed; }
-.dock-grid-add { position: relative; grid-column: 1 / -1; min-height: 112px; border-color: var(--line-2); border-style: dashed; display: grid; place-items: center; }
-.dock-grid-add::after { content: "Drop a widget here"; color: var(--fg-3); font-size: 12px; pointer-events: none; }
-.dock-grid-add[data-over][data-eligible]::after { color: var(--fg); }
 .dock-grid[data-empty] { min-height: 220px; }
-.dock-grid[data-empty] .dock-grid-add { position: absolute; inset: 0; min-height: 220px; }
-.dock-grid[data-empty] .dock-grid-add::after { content: none; }
-.dock-grid-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 220px; color: var(--fg-3); font-size: 12px; text-align: center; pointer-events: none; }
-.dock-grid-empty strong { color: var(--fg-2); font-size: 14px; font-weight: 600; }
 .dock-debug-node { position: absolute; right: 4px; bottom: 4px; z-index: 10; padding: 2px 4px; background: var(--raised); color: var(--fg-3); font: 10px var(--font-mono); pointer-events: none; }
 .app .dock-surface.app-sidebar-dock { position: absolute; inset: 0 auto 0 0; z-index: 2; flex: none; width: var(--dock-sidebar-width); height: 100%; min-height: 0; border-right: 1px solid var(--line-2); }
 .app[data-sidebar-side="right"] .dock-surface.app-sidebar-dock { inset: 0 0 0 auto; border-right: 0; border-left: 1px solid var(--line-2); }

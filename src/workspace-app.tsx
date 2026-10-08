@@ -1,12 +1,14 @@
+import { IconAction } from "@/components/ui/icon-action";
+import { revealPresentation } from "./docking/presentations";
 import { widgetDefinitions, definitionForPanel } from "./widget-catalog";
 import { WidgetBrowser } from "./widget-browser";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Box, Command, Folder, LayoutGrid, PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Plus, Search, Settings2, Undo2, Redo2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Box, Command, Folder, LayoutGrid, ListTree, PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Plus, Search, Settings2, Undo2, Redo2, X } from "lucide-react";
 import { demoSession, deps } from "./composition";
 import { Dashboard, DockWebWidget, DockWidget } from "./dashboard";
 import { ComponentView } from "./component-view";
 import { WebContentView } from "./web-content-view";
-import { DockBottomEdge, DockFloatingPanels, DockHost, DockInspector, DockMainTabs, DockMobileSurface, DockSurface, useDockController } from "./docking/react";
+import { DockBottomEdge, DockFloatingPanels, DockHost, DockMainTabs, DockMobileSurface, DockSurface, useDockController } from "./docking/react";
 import { BROWSER_ID, HOME_ID, panelSurface, surfacePanels, visitNode, type Command as DockCommand, type DockLayout, type Panel as DockPanel, type Result } from "./docking/core";
 import { UnitBrowser } from "./unit-browser";
 import { type WidgetActions } from "./widget-views";
@@ -87,7 +89,7 @@ export function WorkspaceApp() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+
   const [, setNavRevision] = useState(0);
   const navigation = useRef(new Map<string, { back: string[]; current: string; forward: string[] }>());
   const [runRequest, setRunRequest] = useState<{ unitId: string; token: number } | null>(null);
@@ -117,7 +119,28 @@ export function WorkspaceApp() {
       if (next.target?.surface === "sidebar" && narrow) setBottomOpen(true);
     }
     if (result.ok && next.type === "visibility" && next.surface === "sidebar" && !next.hidden && narrow) setBottomOpen(true);
+    if (result.ok && next.type === "visibility" && next.surface === "bottom") setBottomOpen(!next.hidden);
     return result;
+  }
+  async function openInspector() {
+    const existing = Object.values(workspace.dock.panels).find((panel) => panel.kind === "widget" && panel.widget === "docking-inspector");
+    let id = existing?.id;
+    if (existing) {
+      const surface = panelSurface(workspace.dock, existing.id);
+      if (surface === "dashboard") command({ type: "activate", panelId: HOME_ID });
+      command({ type: "activate", panelId: existing.id });
+      if (surface) command({ type: "visibility", surface, hidden: false });
+      if (surface === "bottom" || surface === "sidebar" && narrow) setBottomOpen(true);
+    } else {
+      const result = command({ type: "createWidget", widget: "docking-inspector", target: { surface: "main", intent: "tab" } });
+      if (result.ok) id = result.panelId;
+    }
+    command({ type: "visibility", surface: "main", hidden: false });
+    if (id) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await revealPresentation(id);
+      document.querySelector<HTMLElement>(`[data-presentation-owner="${CSS.escape(id)}"] .station-heading-handle`)?.focus({ preventScroll: true });
+    }
   }
   const nav = navigation.current.get(workspace.id) ?? { back: [], current: activeMainPanel(workspace.dock), forward: [] };
   function navigate(direction: "back" | "forward") {
@@ -189,7 +212,7 @@ export function WorkspaceApp() {
       filters={browserFilters} onFiltersChange={setBrowserFilters} compact={browserSurface === "sidebar" || narrow} />;
   }
   const sidebarHasPanels = surfacePanels(workspace.dock, "sidebar").length > 0;
-  const bottomHasPanels = surfacePanels(workspace.dock, "bottom").length > 0 || narrow && sidebarHasPanels;
+  const bottomHasPanels = !workspace.dock.hidden.bottom && surfacePanels(workspace.dock, "bottom").length > 0 || narrow && !workspace.dock.hidden.sidebar && sidebarHasPanels;
   useEffect(() => { if (narrow && sidebarHasPanels) setBottomOpen(true); }, [narrow, sidebarHasPanels]);
   return <DockHost key={workspace.id} layout={workspace.dock} onCommand={command} renderPanel={renderPanel} panelTitle={(panel) => definitionForPanel(panel, widgetDefinitions(workspace.units))?.title ?? panel.id}
     debugDropZones={new URLSearchParams(location.search).has("debugDropZones")}
@@ -200,7 +223,7 @@ export function WorkspaceApp() {
         { id: "browser", label: "Toggle unit browser", icon: <Box size={16} />, shortcut: "shift+w", onSelect: toggleBrowser },
         { id: "settings", label: "Open settings", icon: <Settings2 size={16} />, onSelect: () => showOverlay({ kind: "settings" }) },
         { id: "search", label: "Search workspace", icon: <Search size={16} />, onSelect: () => setSearchOpen(true) },
-        { id: "inspector", label: "Toggle docking inspector", icon: <LayoutGrid size={16} />, onSelect: () => setInspectorOpen((value) => !value) },
+        { id: "inspector", label: "Open docking inspector", icon: <LayoutGrid size={16} />, onSelect: openInspector },
         { id: "sidebar-side", label: `Move sidebar ${workspace.dock.sidebarSide === "left" ? "right" : "left"}`, icon: <PanelLeftOpen size={16} />, onSelect: () => command({ type: "sidebarSide", side: workspace.dock.sidebarSide === "left" ? "right" : "left" }) },
         { id: "sidebar-visibility", label: workspace.dock.hidden.sidebar ? "Show sidebar" : "Hide sidebar", icon: <PanelLeftOpen size={16} />, onSelect: () => command({ type: "visibility", surface: "sidebar", hidden: !workspace.dock.hidden.sidebar }) },
         { id: "main-visibility", label: workspace.dock.hidden.main ? "Show main surface" : "Hide main surface", icon: <PanelTopOpen size={16} />, onSelect: () => command({ type: "visibility", surface: "main", hidden: !workspace.dock.hidden.main }) },
@@ -227,6 +250,7 @@ export function WorkspaceApp() {
               <button className="icon-button dock-mobile-secondary" title={workspace.dock.hidden.main ? "Show main surface" : "Hide main surface"} aria-label={workspace.dock.hidden.main ? "Show main surface" : "Hide main surface"} onClick={() => command({ type: "visibility", surface: "main", hidden: !workspace.dock.hidden.main })}>{workspace.dock.hidden.main ? <PanelTopOpen size={16} /> : <PanelTopClose size={16} />}</button>
               <button className="icon-button" title="Toggle unit browser (Shift+W)" aria-label="Toggle unit browser" onClick={toggleBrowser}><Box size={16} /></button>
               <button className="icon-button" title="Command palette (Ctrl+K)" aria-label="Open command palette" onClick={() => setPaletteOpen(true)}><Command size={16} /></button>
+              <IconAction label="Open docking inspector" onClick={openInspector}><ListTree size={16} /></IconAction>
               <NotificationInbox defaultItems={[]} /><WidgetCatalog />
               <ThemeToggle theme={state.app.theme} onThemeChange={(theme) => store.patchApp({ theme })} />
               <UserMenu user={{ name: identity?.kind === "demo" ? identity.email?.split("@")[0] || "Demo" : "Guest", email: identity?.email || "Local guest" }} onSignOut={() => { demoSession.set(null); setIdentity(null); }}>
@@ -242,7 +266,6 @@ export function WorkspaceApp() {
       </div></main>
       <DockBottomEdge />
       <DockFloatingPanels />
-      {inspectorOpen && <DockInspector onClose={() => setInspectorOpen(false)} />}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}><DialogContent><DialogHeader><DialogTitle>Search workspace</DialogTitle></DialogHeader><DialogBody><input autoFocus aria-label="Search panels and units" placeholder="Find a panel or unit" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /><div className="dock-search-results">{[
         ...Object.values(workspace.dock.panels).filter((panel) => panel.kind !== "navigation").map((panel) => ({ id: panel.id, label: panel.kind === "unit" || panel.kind === "web-widget" ? workspace.units.find((unit) => unit.id === panel.unitId)?.name ?? panel.unitId : panel.kind === "widget" ? panel.widget : panel.kind === "home" ? "Overview" : "Unit browser", panelId: panel.id })),
         ...workspace.units.filter((unit) => !workspace.dock.panels[`unit-view:${unit.id}`]).map((unit) => ({ id: unit.id, label: unit.name, unitId: unit.id })),
