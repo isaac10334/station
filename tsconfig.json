@@ -12,7 +12,7 @@
       "electrobun/main": ["./.hutch/devkit/api/sdks/main/index.ts"]
     },
     "lib": ["ES2022", "DOM"],
-    "types": ["bun-types"],
+    "types": ["bun"],
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true
