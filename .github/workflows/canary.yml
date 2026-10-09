@@ -16,6 +16,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-2025
+    timeout-minutes: 15
     env:
       STATION_VERSION: 0.1.0-canary.${{ github.run_number }}.${{ github.run_attempt }}
     steps:
@@ -33,14 +34,15 @@ jobs:
         run: |
           $env:ELECTROBUN_INSTALLER_UI_AUTOCLOSE = '1'
           $installer = Join-Path $pwd 'build/canary-win-x64/Station-Setup-canary.exe'
-          $installation = Start-Process -FilePath $installer -Wait -PassThru -WindowStyle Hidden
+          $installation = Start-Process -FilePath $installer -PassThru -WindowStyle Hidden
+          # The installer launches Station; PowerShell -Wait also waits for that
+          # child app. Wait only for the installer process itself.
+          if (!$installation.WaitForExit(60000)) { throw 'Installer did not exit within one minute' }
           if ($installation.ExitCode -ne 0) { throw "Installer failed: $($installation.ExitCode)" }
           $installRoot = Join-Path $env:LOCALAPPDATA 'com.isaacharvey.station/canary'
           if (!(Test-Path (Join-Path $installRoot '.electrobun-uninstall.json'))) {
             throw 'Installer did not register the installed app'
           }
-          $launcher = Join-Path $installRoot 'app/bin/launcher.exe'
-          $app = Start-Process -FilePath $launcher -WorkingDirectory (Split-Path $launcher) -PassThru -WindowStyle Hidden
           try {
             $page = $null
             for ($attempt = 0; $attempt -lt 30; $attempt++) {
@@ -60,7 +62,9 @@ jobs:
               throw 'Installed translator differs from the packaged bytes'
             }
           } finally {
-            Stop-Process -Id $app.Id -ErrorAction SilentlyContinue
+            $appBin = Join-Path $installRoot 'app/bin'
+            Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($appBin, [StringComparison]::OrdinalIgnoreCase) } |
+              Stop-Process -ErrorAction SilentlyContinue
           }
       - uses: actions/upload-artifact@v4
         with:
