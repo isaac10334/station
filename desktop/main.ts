@@ -105,6 +105,14 @@ function refreshMenu() {
 /** Download automatically; applying an update always requires a user action. */
 async function checkForUpdates(manual = false) {
   if (checking) return;
+  if (Updater.updateInfo().updateReady) {
+    if (manual)
+      await Utils.showMessageBox({
+        title: "Station updates",
+        message: "An update is ready. Choose Station → Restart to update.",
+      });
+    return;
+  }
   checking = true;
   refreshMenu();
   try {

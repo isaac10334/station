@@ -8,7 +8,8 @@ It installs independently of this checkout; Bun and Rust are not prerequisites.
 The prototype is unsigned, so Windows may ask you to allow the installer.
 
 Every push to `main` validates, builds, and publishes a canary through GitHub
-Actions. Installed apps check at startup and every five minutes, download in the
+Actions, including installing and launching the real package on its Windows runner.
+Installed apps check at startup and every five minutes, download in the
 background, and enable **Station → Restart to update**. **Check for updates**
 also gives an explicit result. Applying requires confirmation because active
 chats and runs end at restart. Saved workspace data survives.

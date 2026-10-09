@@ -28,6 +28,40 @@ jobs:
       - run: bun run typecheck
       - run: bun test tests
       - run: bun run desktop:build
+      - name: Install and launch the packaged app
+        shell: pwsh
+        run: |
+          $env:ELECTROBUN_INSTALLER_UI_AUTOCLOSE = '1'
+          $installer = Join-Path $pwd 'build/canary-win-x64/Station-Setup-canary.exe'
+          $installation = Start-Process -FilePath $installer -Wait -PassThru -WindowStyle Hidden
+          if ($installation.ExitCode -ne 0) { throw "Installer failed: $($installation.ExitCode)" }
+          $installRoot = Join-Path $env:LOCALAPPDATA 'com.isaacharvey.station/canary'
+          if (!(Test-Path (Join-Path $installRoot '.electrobun-uninstall.json'))) {
+            throw 'Installer did not register the installed app'
+          }
+          $launcher = Join-Path $installRoot 'app/bin/launcher.exe'
+          $app = Start-Process -FilePath $launcher -WorkingDirectory (Split-Path $launcher) -PassThru -WindowStyle Hidden
+          try {
+            $page = $null
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try { $page = Invoke-WebRequest 'http://127.0.0.1:43157/'; break }
+              catch { Start-Sleep -Seconds 1 }
+            }
+            if (!$page -or $page.StatusCode -ne 200 -or $page.RawContentLength -lt 1000000) {
+              throw 'Installed Station did not serve its packaged frontend'
+            }
+            $worker = Invoke-WebRequest 'http://127.0.0.1:43157/api/component/worker.js'
+            if ($worker.StatusCode -ne 200 -or $worker.RawContentLength -lt 1000) {
+              throw 'Installed Component worker is missing'
+            }
+            $translatorPath = Join-Path $env:RUNNER_TEMP 'station-translator.wasm'
+            Invoke-WebRequest 'http://127.0.0.1:43157/api/component/translator.wasm' -OutFile $translatorPath
+            if ((Get-FileHash $translatorPath).Hash -ne (Get-FileHash 'dist/desktop/translator.wasm').Hash) {
+              throw 'Installed translator differs from the packaged bytes'
+            }
+          } finally {
+            Stop-Process -Id $app.Id -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: station-windows
