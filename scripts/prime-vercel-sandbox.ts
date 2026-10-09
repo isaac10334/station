@@ -12,7 +12,7 @@ const sandbox = await Sandbox.create({
   ...(token ? { token, teamId: config.teamId, projectId: config.projectId } : {}),
   source: { type: "snapshot", snapshotId: config.snapshotId },
   timeout: 15 * 60_000, persistent: false, networkPolicy: "allow-all",
-  tags: { purpose: "unit-workspace-dependencies" },
+  tags: { purpose: "station-dependencies" },
 });
 
 async function command(cmd: string, args: string[], cwd = "/vercel/unit") {

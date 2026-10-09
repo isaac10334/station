@@ -1,7 +1,7 @@
 /** Validate the translated binary's contract before any guest code runs. */
 import { requiredImports } from "@polyengine/runtime/embedder";
 import type { ComponentArtifacts } from "@polyengine/runtime/embedder";
-import { P3_CLOCK_INTERFACE, UNIT_HOST_INTERFACE, UNIT_SURFACE_INTERFACE } from "./component-contract";
+import { P3_CLOCK_INTERFACE, ASSET_HOST_INTERFACE, ASSET_SURFACE_INTERFACE } from "./component-contract";
 
 const safeP2Interfaces = new Set([
   "wasi:io/poll@0.2.12", "wasi:io/error@0.2.12", "wasi:io/streams@0.2.12",
@@ -19,13 +19,13 @@ export function inspectComponentPlan(plan: ComponentArtifacts["plan"]): Inspecte
   const leaves = requiredImports(plan);
   for (const leaf of leaves) {
     const allowed = safeP2Interfaces.has(leaf.interfaceId) ||
-      (leaf.interfaceId === UNIT_HOST_INTERFACE && ["log", "feed"].includes(leaf.jsName)) ||
-      (leaf.interfaceId === UNIT_SURFACE_INTERFACE && leaf.jsName === "setText") ||
+      (leaf.interfaceId === ASSET_HOST_INTERFACE && ["log", "feed"].includes(leaf.jsName)) ||
+      (leaf.interfaceId === ASSET_SURFACE_INTERFACE && leaf.jsName === "setText") ||
       (leaf.interfaceId === P3_CLOCK_INTERFACE && leaf.jsName === "now");
     if (!allowed) throw new Error(`Unsupported Component import: ${leaf.interfaceId}.${leaf.jsName}`);
   }
-  for (const name of [`${UNIT_HOST_INTERFACE}.log`, `${UNIT_HOST_INTERFACE}.feed`,
-    `${UNIT_SURFACE_INTERFACE}.setText`, `${P3_CLOCK_INTERFACE}.now`]) {
+  for (const name of [`${ASSET_HOST_INTERFACE}.log`, `${ASSET_HOST_INTERFACE}.feed`,
+    `${ASSET_SURFACE_INTERFACE}.setText`, `${P3_CLOCK_INTERFACE}.now`]) {
     if (!leaves.some((leaf) => `${leaf.interfaceId}.${leaf.jsName}` === name))
       throw new Error(`P3 Component contract is missing ${name}`);
   }

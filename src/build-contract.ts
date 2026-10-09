@@ -33,7 +33,7 @@ export class BuildFailure extends Error {
 export function validateSource(value: unknown): BuildSource {
   if (!value || typeof value !== "object") throw new BuildFailure("Expected one Component source project.");
   const input = value as Partial<BuildSource>;
-  if (typeof input.id !== "string" || !validId.test(input.id)) throw new BuildFailure("Invalid unit ID.");
+  if (typeof input.id !== "string" || !validId.test(input.id)) throw new BuildFailure("Invalid asset ID.");
   if (!Number.isSafeInteger(input.revision) || input.revision! < 0) throw new BuildFailure("Invalid source revision.");
   if (!input.files || typeof input.files !== "object" || Array.isArray(input.files)) throw new BuildFailure("Invalid source files.");
   const files = input.files;
@@ -45,7 +45,7 @@ export function validateSource(value: unknown): BuildSource {
   if (new TextEncoder().encode(JSON.stringify(files)).byteLength > 256_000)
     throw new BuildFailure("Source exceeds 256 KB.");
   const packageName = files["Cargo.toml"].match(/^\[package\]\s*\r?\n(?:[^[]*?\r?\n)*?name\s*=\s*"([a-z][a-z0-9-]*)"/m)?.[1];
-  if (packageName !== input.id) throw new BuildFailure("Cargo package name must match the unit ID.");
+  if (packageName !== input.id) throw new BuildFailure("Cargo package name must match the asset ID.");
   return { id: input.id, revision: input.revision!, files };
 }
 

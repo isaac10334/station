@@ -5,7 +5,7 @@
  * @example
  * resolveIntent("tab", { shift: true, alt: false }, { x: 4, y: 40, width: 200, height: 100 }); // "left"
  */
-import type { Intent } from "./core";
+import type { Intent, Target } from "./core";
 import type { KeyboardCoordinateGetter } from "@dnd-kit/core";
 import { clippedBounds } from "./geometry";
 
@@ -17,14 +17,17 @@ export function nearestEdge(point: PointInTarget): Exclude<Intent, "append" | "t
   return (Object.entries(distances).sort((a, b) => a[1] - b[1])[0]?.[0] ?? "right") as Exclude<Intent, "append" | "tab" | "swap">;
 }
 
-/** Arrow keys visit actual registered cross-container targets, including rejected ones. */
-export function createDockKeyboardCoordinates(select: (id: string | null) => void) {
+/** Arrow keys visit visible registered targets accepted by the host's placement policy. */
+export function createDockKeyboardCoordinates(select: (id: string | null) => void, accepts?: (target: Target, panelId: string, point: PointInTarget) => boolean) {
  let selected: string | null = null;
  const coordinateGetter: KeyboardCoordinateGetter = (event, { context, currentCoordinates }) => {
   if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.code)) return;
   event.preventDefault();
   const targets = context.droppableContainers.getEnabled().filter((item) => {
     const element = item.node.current, rect = element ? clippedBounds(element) : null;
+    const target = item.data.current?.target as Target | undefined;
+    const panelId = context.active?.data.current?.item?.panelId as string | undefined;
+    if (accepts && target && panelId && rect && !accepts(target, panelId, { x: rect.width / 2, y: rect.height / 2, width: rect.width, height: rect.height })) return false;
     return (String(item.id).startsWith("dock-target:") || item.data.current?.tabId) && rect && rect.width > 2 && rect.height > 2 && rect.bottom > 0 && rect.top < innerHeight && rect.right > 0 && rect.left < innerWidth && element && getComputedStyle(element).visibility !== "hidden";
   });
   targets.sort((a, b) => { const ra = a.node.current!.getBoundingClientRect(), rb = b.node.current!.getBoundingClientRect(); return Math.round(ra.top / 12) - Math.round(rb.top / 12) || ra.left - rb.left || String(a.id).localeCompare(String(b.id)); });

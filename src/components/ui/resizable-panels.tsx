@@ -111,13 +111,20 @@ export function PanelGroup({ direction = "horizontal", value, onLayout, classNam
   useEffect(() => {
     const el = root.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
+    // Resize notifications may follow presentation writes. Commit React geometry
+    // on the next frame so nested groups cannot resize during observer delivery.
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
       const handles = Array.from(el.children).filter((c) => c.getAttribute("role") === "separator");
       const handlePx = handles.reduce((sum, h) => sum + (direction === "horizontal" ? (h as HTMLElement).offsetWidth : (h as HTMLElement).offsetHeight), 0);
       setGroupPx((direction === "horizontal" ? el.clientWidth : el.clientHeight) - handlePx);
+    };
+    const ro = new ResizeObserver(() => {
+      if (!frame) frame = requestAnimationFrame(measure);
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); cancelAnimationFrame(frame); };
   }, [direction]);
 
   const isCollapsed = (i: number, v = mvs[i].get()) => defsRef.current[i].collapsible && v <= defsRef.current[i].collapsedSize + 0.01;

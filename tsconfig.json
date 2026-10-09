@@ -6,12 +6,23 @@
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
+    "paths": {
+      "@/*": ["./src/*"],
+      "electrobun": ["./.hutch/devkit/api/sdks/main/index.ts"],
+      "electrobun/main": ["./.hutch/devkit/api/sdks/main/index.ts"]
+    },
     "lib": ["ES2022", "DOM"],
     "types": ["bun-types"],
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["server.ts", "src", "scripts"]
+  "include": [
+    "server.ts",
+    "station-server.ts",
+    "electrobun.config.ts",
+    "desktop",
+    "src",
+    "scripts"
+  ]
 }

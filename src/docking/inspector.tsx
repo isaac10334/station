@@ -8,7 +8,7 @@ import { revealPresentation } from "./presentations";
 
 /** Ordinary widget content inspecting the shared tree, including Layout-owned children. */
 export function DockInspector() {
-  const { layout, command, panelTitle, debugDropZones, debugLayout, wiggle, setDebugDropZones, setDebugLayout, setWiggle } = useDockController();
+  const { layout, command, panelTitle, debugDropZones, debugLayout, editingWidgets, setDebugDropZones, setDebugLayout, setEditingWidgets } = useDockController();
   const describe = (node: Node): ReactNode => <details key={node.id} open className="station-tree-branch">
     <summary><span>{node.kind === "split" ? `${node.axis === "horizontal" ? "Columns" : "Rows"} · ${Math.round(node.ratio * 100)}%` : node.kind === "grid" ? "Rows" : `Slot · ${node.tabs.length} widget${node.tabs.length === 1 ? "" : "s"}`}</span><small title={node.id}>{node.id.split(":")[0]}</small></summary>
     <div className="station-tree-children">
@@ -18,7 +18,7 @@ export function DockInspector() {
     </div>
   </details>;
   return <div className="station-inspector">
-    <div className="station-inspector-settings"><Switch label="Drop-zone diagnostics" checked={debugDropZones} onCheckedChange={setDebugDropZones} /><Switch label="Layout IDs" checked={debugLayout} onCheckedChange={setDebugLayout} /><Switch label="Wiggle while moving" checked={wiggle} onCheckedChange={setWiggle} /></div>
+    <div className="station-inspector-settings"><Switch label="Drop-zone diagnostics" checked={debugDropZones} onCheckedChange={setDebugDropZones} /><Switch label="Layout IDs" checked={debugLayout} onCheckedChange={setDebugLayout} /><Switch label="Edit widgets" checked={editingWidgets} onCheckedChange={setEditingWidgets} /></div>
     <nav aria-label="Layout tree" className="station-layout-tree">{(["main", "dashboard", "sidebar", "bottom"] as const).map((surface) => <section key={surface}>
       <div className="station-tree-surface"><strong>{surface}</strong>{surface !== "dashboard" && <IconAction label={`${layout.hidden[surface] ? "Show" : "Hide"} ${surface}`} onClick={() => command({ type: "visibility", surface, hidden: !layout.hidden[surface] })}><EyeIcon size={17} className={layout.hidden[surface] ? "station-eye-hidden" : ""} /></IconAction>}</div>
       {layout.surfaces[surface] ? describe(layout.surfaces[surface]!) : <p className="station-tree-empty">Empty</p>}

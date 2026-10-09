@@ -3,10 +3,11 @@ import { HOST_CLOCK, HOST_FEED, HOST_LOG, HOST_SURFACE } from "./component-contr
 export { HOST_CLOCK, HOST_FEED, HOST_LOG, HOST_SURFACE } from "./component-contract";
 import { DEFAULT_DOCK_POLICY, createDockLayout, migrateDock, reduceDock, type Command, type DockLayout, type DockPolicy } from "./docking/core";
 import type { BuiltArtifact, BuildSource } from "./build-contract";
+import { normalizeNavigation, type NavigationFilter } from "./navigation-filter";
 import { type WidgetId } from "./panel-layout";
 export type { WidgetId } from "./panel-layout";
 
-export type ComponentUnit = {
+export type ComponentAsset = {
   kind: "component";
   id: string;
   instanceId: string;
@@ -20,7 +21,7 @@ export type ComponentUnit = {
 };
 
 /** Authored HTML runs only in the sandboxed web preview, never in the host document. */
-export type WebContentUnit = {
+export type WebContentAsset = {
   kind: "web-content";
   id: string;
   instanceId: string;
@@ -29,15 +30,16 @@ export type WebContentUnit = {
   html: string;
   revision: number;
 };
-export type Unit = ComponentUnit | WebContentUnit;
+export type Asset = ComponentAsset | WebContentAsset;
 
 export type Workspace = {
   id: string;
   name: string;
   description: string;
-  selectedUnitId: string | null;
-  units: Unit[];
+  selectedAssetId: string | null;
+  assets: Asset[];
   dock: DockLayout;
+  navigation: NavigationFilter;
 };
 
 export const DEFAULT_WIDGETS: WidgetId[] = ["weather", "clock", "stack", "capabilities"];
@@ -59,9 +61,9 @@ export type State = {
   app: AppSettings;
 };
 
-export function hasCurrentArtifact(unit: ComponentUnit): boolean {
-  return unit.artifact?.schemaVersion === 2 && unit.artifact.profile === "component-model-0.3" &&
-    unit.artifact.id === unit.id && unit.artifact.revision === unit.revision;
+export function hasCurrentArtifact(asset: ComponentAsset): boolean {
+  return asset.artifact?.schemaVersion === 2 && asset.artifact.profile === "component-model-0.3" &&
+    asset.artifact.id === asset.id && asset.artifact.revision === asset.revision;
 }
 export interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -129,7 +131,7 @@ const WEB_WIDGET_STARTER = `<main class="widget">
   button.addEventListener('click', () => { button.textContent = 'Count: ' + ++count; });
 </script>`;
 
-function sample(): ComponentUnit {
+function sample(): ComponentAsset {
   return {
     id: "greeting",
     kind: "component",
@@ -146,8 +148,8 @@ function sample(): ComponentUnit {
 }
 
 function newWorkspace(id: string, name: string, description = ""): Workspace {
-  const unit = sample();
-  return { id, name, description, selectedUnitId: unit.id, units: [unit], dock: createDockLayout() };
+  const asset = sample();
+  return { id, name, description, selectedAssetId: asset.id, assets: [asset], dock: createDockLayout(), navigation: normalizeNavigation() };
 }
 
 function initialState(storage: KeyValueStorage, policy: DockPolicy = DEFAULT_DOCK_POLICY): State {
@@ -158,15 +160,18 @@ function initialState(storage: KeyValueStorage, policy: DockPolicy = DEFAULT_DOC
     prior.workspaces.length &&
     prior.workspaces.every(
       (workspace: any) =>
-        typeof workspace.id === "string" && Array.isArray(workspace.units),
+        typeof workspace.id === "string" && Array.isArray(workspace.assets ?? workspace.units),
     )
   ) {
     return {
       ...prior,
       app: { ...appDefaults, ...prior.app, theme: ["light", "dark", "system"].includes(prior.app?.theme) ? prior.app.theme : "dark" },
       workspaces: prior.workspaces.map((workspace: any): Workspace => {
-        const { widgets, layout, dock, ...rest } = workspace;
-        return { ...rest, units: workspace.units.map((unit: Unit) => ({ ...unit, kind: unit.kind === "web-content" ? "web-content" : "component", instanceId: unit.instanceId || crypto.randomUUID() })), dock: migrateDock(dock ?? layout, Array.isArray(widgets) ? widgets : DEFAULT_WIDGETS, policy) };
+        const { widgets, layout, dock, units, selectedUnitId, ...rest } = workspace;
+        // Migrate metadata only: authored source, grants, hashes and identity stay intact.
+        return { ...rest, navigation: normalizeNavigation(workspace.navigation), selectedAssetId: workspace.selectedAssetId !== undefined ? workspace.selectedAssetId : selectedUnitId ?? null,
+          assets: (workspace.assets ?? units).map((asset: Asset) => ({ ...asset, kind: asset.kind === "web-content" ? "web-content" : "component", instanceId: asset.instanceId || crypto.randomUUID() })),
+          dock: migrateDock(dock ?? layout, Array.isArray(widgets) ? widgets : DEFAULT_WIDGETS, policy) };
       }),
     } as State;
   }
@@ -182,7 +187,7 @@ function initialState(storage: KeyValueStorage, policy: DockPolicy = DEFAULT_DOC
               item.description || "",
             ),
           )
-      : [newWorkspace("default", "My Workspace", "Local unit workspace")];
+      : [newWorkspace("default", "My Workspace", "Local asset workspace")];
   const legacyActive = read(storage, LEGACY_ACTIVE);
   const legacyApp = read(storage, LEGACY_APP) || {};
   return {
@@ -219,10 +224,11 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
   const repairHistory = (layout: DockLayout, workspace: Workspace) => {
     const copy = structuredClone(layout);
     for (const [id, panel] of Object.entries(copy.panels))
-      if ((panel.kind === "unit" || panel.kind === "web-widget") && !workspace.units.some((unit) => unit.id === panel.unitId)) delete copy.panels[id];
+      if ((panel.kind === "asset" || panel.kind === "web-widget") && !workspace.assets.some((asset) => asset.id === panel.assetId)) delete copy.panels[id];
     return migrateDock(copy, DEFAULT_WIDGETS, policy);
   };
   const listeners = new Set<() => void>();
+  const grantRevocations = new Set<(instanceId: string, capability: string) => void>();
   function publish(next: State) {
     state = next;
     // Surface visibility is a session preference; saved trees and panel IDs remain intact.
@@ -239,14 +245,14 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
       ),
     });
   }
-  function updateUnit(
+  function updateAsset(
     id: string,
-    change: (unit: Unit) => Unit,
+    change: (asset: Asset) => Asset,
   ) {
     updateWorkspace((workspace) => ({
       ...workspace,
-      units: workspace.units.map((unit) =>
-        unit.id === id ? change(unit) : unit,
+      assets: workspace.assets.map((asset) =>
+        asset.id === id ? change(asset) : asset,
       ),
     }));
   }
@@ -257,12 +263,17 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    /** Notifies even when a saved grant was already false, to revoke one-run authority. */
+    subscribeGrantRevocations(listener: (instanceId: string, capability: string) => void) {
+      grantRevocations.add(listener);
+      return () => { grantRevocations.delete(listener); };
+    },
     active: () =>
       state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
     selected: () =>
       store
         .active()
-        .units.find((unit) => unit.id === store.active().selectedUnitId) ||
+        .assets.find((asset) => asset.id === store.active().selectedAssetId) ||
       null,
     selectWorkspace(id: string) {
       if (state.workspaces.some((item) => item.id === id))
@@ -282,18 +293,22 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
     describeWorkspace(description: string) {
       updateWorkspace((workspace) => ({ ...workspace, description }));
     },
+    /** Navigation preferences are content filters, independent of structural layout undo. */
+    setNavigation(navigation: NavigationFilter) {
+      updateWorkspace((workspace) => ({ ...workspace, navigation: normalizeNavigation(navigation) }));
+    },
     dispatchDock(command: Command) {
       let result: ReturnType<typeof reduceDock> | null = null;
       updateWorkspace((workspace) => {
-        if (command.type === "createWebWidget" && !workspace.units.some((unit) => unit.id === command.unitId && unit.kind === "web-content")) {
-          result = { ok: false, layout: workspace.dock, reason: "Web content unit not found" };
+        if (command.type === "createWebWidget" && !workspace.assets.some((asset) => asset.id === command.assetId && asset.kind === "web-content")) {
+          result = { ok: false, layout: workspace.dock, reason: "Web content asset not found" };
           return workspace;
         }
-        if (command.type === "createUnitView" && !workspace.units.some((unit) => unit.id === command.unitId)) { result = { ok: false, layout: workspace.dock, reason: "Unit content not found" }; return workspace; }
+        if (command.type === "createAssetView" && !workspace.assets.some((asset) => asset.id === command.assetId)) { result = { ok: false, layout: workspace.dock, reason: "Asset content not found" }; return workspace; }
         result = reduceDock(workspace.dock, command, policy);
         if (result.ok && result.layout !== workspace.dock && !["activate", "browserView", "visibility"].includes(command.type)) {
           const history = historyFor(workspace.id);
-          const resizeKey = command.type === "resizeSplit" ? command.nodeId : command.type === "resizeBottom" ? "bottom" : null;
+          const resizeKey = command.type === "resizeSplit" ? command.nodeId : command.type === "resizeBottom" ? "bottom" : command.type === "resizeSidebar" ? "sidebar" : null;
           const now = Date.now();
           if (!resizeKey || history.lastResize !== resizeKey || now - history.lastAt > 800) {
             history.past.push(workspace.dock);
@@ -325,19 +340,19 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
       updateWorkspace((current) => ({ ...current, dock: repairHistory(next, current) }));
       return true;
     },
-    selectUnit(id: string) {
+    selectAsset(id: string) {
       updateWorkspace((workspace) =>
-        workspace.units.some((unit) => unit.id === id)
-          ? { ...workspace, selectedUnitId: id }
+        workspace.assets.some((asset) => asset.id === id)
+          ? { ...workspace, selectedAssetId: id }
           : workspace,
       );
     },
-    createUnit(name: string) {
+    createAsset(name: string) {
       const workspace = store.active();
       const base = slug(name);
       let id = base;
       let suffix = 2;
-      while (workspace.units.some((unit) => unit.id === id))
+      while (workspace.assets.some((asset) => asset.id === id))
         id = `${base}-${suffix++}`;
       const files = {
         ...greetingSource,
@@ -350,7 +365,7 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
           `name = "${id}"`,
         ),
       };
-      const unit: ComponentUnit = {
+      const asset: ComponentAsset = {
         kind: "component",
         id,
         instanceId: crypto.randomUUID(),
@@ -364,82 +379,88 @@ export function createStore(storage: KeyValueStorage, policy: DockPolicy = DEFAU
       };
       updateWorkspace((current) => ({
         ...current,
-        units: [...current.units, unit],
-        selectedUnitId: id,
+        assets: [...current.assets, asset],
+        selectedAssetId: id,
       }));
       return id;
     },
-    createWebUnit(name: string) {
+    createWebAsset(name: string, html: string = WEB_WIDGET_STARTER) {
       const workspace = store.active();
       const base = slug(name);
       let id = base, suffix = 2;
-      while (workspace.units.some((unit) => unit.id === id)) id = `${base}-${suffix++}`;
-      const unit: WebContentUnit = {
+      while (workspace.assets.some((asset) => asset.id === id)) id = `${base}-${suffix++}`;
+      const asset: WebContentAsset = {
         kind: "web-content", id, instanceId: crypto.randomUUID(), name,
         description: "Local HTML widget", revision: 0,
-        html: WEB_WIDGET_STARTER,
+        html,
       };
-      updateWorkspace((current) => ({ ...current, units: [...current.units, unit], selectedUnitId: id }));
+      updateWorkspace((current) => ({ ...current, assets: [...current.assets, asset], selectedAssetId: id }));
       return id;
     },
     /** Remove source, grants, artifact metadata, and every open view in one persisted update. */
-    deleteUnits(ids: string[]) {
+    deleteAssets(ids: string[]) {
       const requested = new Set(ids);
       const workspace = store.active();
-      const removed = workspace.units.filter((unit) => requested.has(unit.id)).map((unit) => unit.id);
+      const removed = workspace.assets.filter((asset) => requested.has(asset.id)).map((asset) => asset.id);
       if (!removed.length) return 0;
       const deleted = new Set(removed);
       layoutHistory.delete(workspace.id);
       updateWorkspace((current) => {
         let dock = current.dock;
         for (const panel of Object.values(dock.panels)) {
-          if ((panel.kind === "unit" || panel.kind === "web-widget") && deleted.has(panel.unitId)) {
+          if ((panel.kind === "asset" || panel.kind === "web-widget") && deleted.has(panel.assetId)) {
             const result = reduceDock(dock, { type: "close", panelId: panel.id });
             if (result.ok) dock = result.layout;
           }
         }
-        const units = current.units.filter((unit) => !deleted.has(unit.id));
-        return { ...current, units, dock, selectedUnitId: units.some((unit) => unit.id === current.selectedUnitId) ? current.selectedUnitId : units[0]?.id ?? null };
+        const assets = current.assets.filter((asset) => !deleted.has(asset.id));
+        return { ...current, assets, dock, selectedAssetId: assets.some((asset) => asset.id === current.selectedAssetId) ? current.selectedAssetId : assets[0]?.id ?? null };
       });
       return removed.length;
     },
-    renameUnit(id: string, name: string) {
-      updateUnit(id, (unit) => ({ ...unit, name }));
+    renameAsset(id: string, name: string) {
+      updateAsset(id, (asset) => ({ ...asset, name }));
     },
-    describeUnit(id: string, description: string) {
-      updateUnit(id, (unit) => ({ ...unit, description }));
+    describeAsset(id: string, description: string) {
+      updateAsset(id, (asset) => ({ ...asset, description }));
     },
     editFile(id: string, path: string, content: string) {
-      updateUnit(id, (unit) => unit.kind === "component" ? ({
-        ...unit,
-        files: { ...unit.files, [path]: content },
-        revision: unit.revision + 1,
-      }) : unit);
+      updateAsset(id, (asset) => asset.kind === "component" ? ({
+        ...asset,
+        files: { ...asset.files, [path]: content },
+        revision: asset.revision + 1,
+      }) : asset);
     },
     editWebHtml(id: string, html: string) {
-      updateUnit(id, (unit) => unit.kind === "web-content" ? { ...unit, html, revision: unit.revision + 1 } : unit);
+      updateAsset(id, (asset) => asset.kind === "web-content" ? { ...asset, html, revision: asset.revision + 1 } : asset);
     },
     installArtifact(workspaceId: string, source: BuildSource, artifact: BuiltArtifact, instanceId: string): boolean {
       const workspace = state.workspaces.find((item) => item.id === workspaceId);
-      const unit = workspace?.units.find((item) => item.id === source.id);
-      if (!unit || unit.kind !== "component" || unit.instanceId !== instanceId || unit.revision !== source.revision ||
-          JSON.stringify(unit.files) !== JSON.stringify(source.files)) return false;
+      const asset = workspace?.assets.find((item) => item.id === source.id);
+      if (!asset || asset.kind !== "component" || asset.instanceId !== instanceId || asset.revision !== source.revision ||
+          JSON.stringify(asset.files) !== JSON.stringify(source.files)) return false;
       publish({ ...state, workspaces: state.workspaces.map((item) =>
-        item.id === workspaceId ? { ...item, units: item.units.map((candidate) =>
+        item.id === workspaceId ? { ...item, assets: item.assets.map((candidate) =>
           candidate.id === source.id && candidate.kind === "component" ? { ...candidate, artifact } : candidate,
         ) } : item,
       ) });
       return true;
     },
     setGrant(id: string, capability: string, granted: boolean) {
-      updateUnit(id, (unit) => unit.kind === "component" ? ({
-        ...unit,
-        grants: { ...unit.grants, [capability]: granted },
-      }) : unit);
+      const instanceId = store.active().assets.find(asset => asset.id === id)?.instanceId;
+      if (!granted && instanceId) grantRevocations.forEach(listener => listener(instanceId, capability));
+      updateAsset(id, (asset) => asset.kind === "component" ? ({
+        ...asset,
+        grants: { ...asset.grants, [capability]: granted },
+      }) : asset);
+    },
+    /** One persisted decision for the complete approval, without intermediate grant states. */
+    allowComponentGrants(id: string, capabilities: readonly string[]) {
+      updateAsset(id, asset => asset.kind === "component" ? { ...asset, grants: { ...asset.grants, ...Object.fromEntries(capabilities.map(key => [key, true])) } } : asset);
     },
     resetSample(id: string) {
       if (id !== "greeting") return;
-      updateUnit(id, (unit) => unit.kind === "component" ? { ...sample(), grants: unit.grants } : unit);
+      updateAsset(id, (asset) => asset.kind === "component" ? { ...sample(), grants: asset.grants } : asset);
     },
     patchApp(patch: Partial<AppSettings>) {
       publish({ ...state, app: { ...state.app, ...patch } });

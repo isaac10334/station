@@ -1,3 +1,4 @@
+import { ActionTooltip } from "@/components/ui/action-tooltip";
 import { flushSync } from "react-dom";
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
@@ -65,7 +66,7 @@ export function ThemeToggle({ theme, onThemeChange, className = "icon-button" }:
   }, []);
   const dark = theme === "system" ? systemDark : theme === "dark";
   const next = dark ? "light" : "dark";
-  return <button type="button" className={className} title={`Switch to ${next} theme`} aria-label={`Switch to ${next} theme`} onClick={(event) => changeTheme(next, onThemeChange, event.currentTarget)}>
+  return <ActionTooltip label={`Switch to ${next} theme`}><button type="button" className={className} aria-label={`Switch to ${next} theme`} onClick={(event) => changeTheme(next, onThemeChange, event.currentTarget)}>
     {dark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
-  </button>;
+  </button></ActionTooltip>;
 }

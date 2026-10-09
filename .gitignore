@@ -12,3 +12,10 @@ components/greeting/.git/
 
 .vercel
 .env*.local
+
+.idea/
+.hutch/
+build/
+artifacts/
+.env
+.cottontail-tmp/

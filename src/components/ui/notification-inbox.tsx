@@ -1,4 +1,5 @@
 "use client";
+import { ActionTooltip } from "@/components/ui/action-tooltip";
 import { Popover } from "@base-ui/react/popover";
 import { Tabs } from "@base-ui/react/tabs";
 import { AnimatePresence, motion, useAnimate, useReducedMotion } from "motion/react";
@@ -174,7 +175,7 @@ export function NotificationInbox({
         if (!next) finalize();
       }}
     >
-      <Popover.Trigger
+      <ActionTooltip label={label}><Popover.Trigger
         data-slot="notification-inbox"
         className={cn(
           "group/bell relative grid size-8 shrink-0 place-items-center rounded-lg text-fg-2 outline-none",
@@ -191,7 +192,7 @@ export function NotificationInbox({
           <Bell />
         </span>
         <CountBadge count={unread} size="sm" position="top-right" className="right-1! top-1!" label={(n) => `${n} unread`} announce />
-      </Popover.Trigger>
+      </Popover.Trigger></ActionTooltip>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-(--z-popover)">
           <Popover.Popup

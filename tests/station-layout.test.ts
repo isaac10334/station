@@ -8,6 +8,23 @@ function apply(layout: DockLayout, command: Command) {
   return result.layout;
 }
 const dashboard = { surface: "dashboard", intent: "append" } as const;
+test("side dock width migrates, clamps, persists, and supports layout undo", () => {
+  const storage = new Map<string, string>();
+  const backing = { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, value); } };
+  const store = createStore(backing);
+  expect(store.active().dock.sidebarWidth).toBe(310);
+  store.dispatchDock({ type: "resizeSidebar", width: 412 });
+  expect(createStore(backing).active().dock.sidebarWidth).toBe(412);
+  store.undoLayout();
+  expect(store.active().dock.sidebarWidth).toBe(310);
+  store.redoLayout();
+  expect(store.active().dock.sidebarWidth).toBe(412);
+  expect(apply(store.active().dock, { type: "resizeSidebar", width: 999 }).sidebarWidth).toBe(520);
+  const legacy = { ...store.active().dock } as Partial<DockLayout>;
+  delete legacy.sidebarWidth;
+  expect(migrateDock(legacy).sidebarWidth).toBe(310);
+  expect(reduceDock(store.active().dock, { type: "resizeSidebar", width: NaN }).ok).toBe(false);
+});
 test("docking inspector is an ordinary movable instance retained by layout recovery", () => {
   let dock = createDockLayout([]);
   dock = apply(dock, { type: "createWidget", widget: "stack", id: "layout", target: dashboard });
@@ -26,19 +43,19 @@ test("additional editor instances share source; removal keeps content; content d
   const values = new Map<string, string>();
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
   const store = createStore(storage);
-  const id = store.createUnit("Multiple views");
-  store.dispatchDock({ type: "createUnitView", unitId: id, id: "editor-a", target: dashboard });
-  store.dispatchDock({ type: "createUnitView", unitId: id, id: "editor-b", target: dashboard });
+  const id = store.createAsset("Multiple views");
+  store.dispatchDock({ type: "createAssetView", assetId: id, id: "editor-a", target: dashboard });
+  store.dispatchDock({ type: "createAssetView", assetId: id, id: "editor-b", target: dashboard });
   store.editFile(id, "src/lib.rs", "// shared source\n");
   const reloaded = createStore(storage);
-  expect(reloaded.active().dock.panels["editor-a"]).toMatchObject({ unitId: id });
-  expect(reloaded.active().dock.panels["editor-b"]).toMatchObject({ unitId: id });
-  expect(reloaded.active().units.find((unit) => unit.id === id)).toMatchObject({ files: { "src/lib.rs": "// shared source\n" }, revision: 1 });
+  expect(reloaded.active().dock.panels["editor-a"]).toMatchObject({ assetId: id });
+  expect(reloaded.active().dock.panels["editor-b"]).toMatchObject({ assetId: id });
+  expect(reloaded.active().assets.find((asset) => asset.id === id)).toMatchObject({ files: { "src/lib.rs": "// shared source\n" }, revision: 1 });
   reloaded.dispatchDock({ type: "close", panelId: "editor-a" });
-  expect(reloaded.active().units.some((unit) => unit.id === id)).toBe(true);
-  reloaded.deleteUnits([id]);
+  expect(reloaded.active().assets.some((asset) => asset.id === id)).toBe(true);
+  reloaded.deleteAssets([id]);
   expect(reloaded.active().dock.panels["editor-b"]).toBeUndefined();
-  expect(reloaded.dispatchDock({ type: "createUnitView", unitId: id, target: dashboard }).ok).toBe(false);
+  expect(reloaded.dispatchDock({ type: "createAssetView", assetId: id, target: dashboard }).ok).toBe(false);
 });
 test("appending after a whole-dashboard split retains every placed instance", () => {
   let dock = createDockLayout(["clock"]);
@@ -112,7 +129,7 @@ test("nested slots work in a dock and a float with the same children and ratios"
   dock = apply(dock, { type: "splitSlot", nodeId: dock.containers.layout.id, axis: "vertical" });
   const split = dock.containers.layout;
   if (split.kind !== "split") throw new Error("Expected split");
-  dock = apply(dock, { type: "createWebWidget", unitId: "web", id: "web-widget", target: { surface: "sidebar", ownerId: "layout", nodeId: split.first.id, intent: "tab" } });
+  dock = apply(dock, { type: "createWebWidget", assetId: "web", id: "web-widget", target: { surface: "sidebar", ownerId: "layout", nodeId: split.first.id, intent: "tab" } });
   dock = apply(dock, { type: "float", panelId: "layout" });
   dock = apply(dock, { type: "activate", panelId: "web-widget" });
   dock = apply(dock, { type: "resizeSplit", nodeId: split.id, ratio: .123456 });
@@ -139,4 +156,33 @@ test("whole dashboard splits and malformed ownership survive repair without lost
   const restored = migrateDock(corrupt);
   expect(validateDock(restored)).toBeNull();
   expect(Object.keys(restored.panels)).toEqual(Object.keys(dock.panels));
+});
+
+
+test("Asset browser moves through main, dashboard and Layout slots without losing identity", () => {
+  let dock = createDockLayout([]);
+  dock = apply(dock, { type: "move", panelId: "asset-browser", target: { surface: "main", intent: "tab" } });
+  expect(dock.surfaces.bottom).toMatchObject({ kind: "stack", tabs: [], keepEmpty: true });
+  dock = migrateDock(JSON.parse(JSON.stringify(dock)));
+  expect(panelSlot(dock, "asset-browser")?.target.surface).toBe("main");
+  expect(dock.surfaces.bottom).toMatchObject({ tabs: [], keepEmpty: true });
+  dock = apply(dock, { type: "move", panelId: "asset-browser", target: dashboard });
+  dock = apply(dock, { type: "createWidget", widget: "stack", id: "browser-layout", target: dashboard });
+  dock = apply(dock, { type: "move", panelId: "asset-browser", target: { ...dashboard, ownerId: "browser-layout", nodeId: dock.containers["browser-layout"].id, intent: "tab" } });
+  dock = migrateDock(JSON.parse(JSON.stringify(dock)));
+  expect(descendants(dock, "browser-layout")).toContain("asset-browser");
+  dock = apply(dock, { type: "close", panelId: "browser-layout" });
+  expect(panelSlot(dock, "asset-browser")?.target.surface).toBe("dashboard");
+  expect(reduceDock(dock, { type: "close", panelId: "asset-browser" }).ok).toBe(false);
+  dock = apply(dock, { type: "move", panelId: "asset-browser", target: { surface: "bottom", nodeId: dock.surfaces.bottom!.id, intent: "tab" } });
+  expect(validateDock(dock)).toBeNull();
+});
+
+test("older layouts with the browser elsewhere recover a reusable empty bottom slot", () => {
+  const dock = createDockLayout([]);
+  const moved = apply(dock, { type: "move", panelId: "asset-browser", target: { surface: "sidebar", intent: "tab" } });
+  moved.surfaces.bottom = null;
+  const restored = migrateDock(moved);
+  expect(restored.surfaces.bottom).toMatchObject({ kind: "stack", tabs: [], keepEmpty: true });
+  expect(validateDock(restored)).toBeNull();
 });

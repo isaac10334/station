@@ -1,8 +1,8 @@
 # Station implementation plan
 
-Baseline: `46e9a56`, branch `station-overhaul`. Stop before assets.
+Baseline: `46e9a56`, branch `station-overhaul`. This historical layout plan preceded the asset terminology change; broader asset architecture remains exploratory.
 
-1. Rename product/package and preserve all storage, unit, WIT, capability and artifact identities. Verify existing workspace loading.
+1. Rename product/package and preserve all storage, asset, WIT, capability and artifact identities. Verify existing workspace loading.
 2. Evolve the dock document: reusable definition metadata, stable instances (the existing panel records are the compatibility representation), explicit empty slots, nested Layout ownership, atomic move/reorder/swap/split/remove operations and migration. Test invariants and recovery.
 3. Render backing geometry, real Layout children, slot controls and a searchable definition/instance browser. Keep one command/history/storage boundary.
 4. Use one dnd-kit coordinator with dedicated 400 ms handles and cross-container keyboard targets. Preview validated destination geometry; use Motion for position/reflow, never duplicate live content.
@@ -22,7 +22,7 @@ Baseline: `46e9a56`, branch `station-overhaul`. Stop before assets.
 
 Stages and browser evidence are recorded here as they complete. The checkout remains at `unit-workspace` while Codex and the Bun watcher hold active paths. Final handoff includes rename/reopen commands.
 
-Stage 1: product/package renamed; compatibility strings retained. Typecheck and standalone build pass. Built-in browser reload shows Station and the pre-existing workspace, source unit and widget IDs.
+Stage 1: product/package renamed; compatibility strings retained. Typecheck and standalone build pass. Built-in browser reload shows Station and the pre-existing workspace, source asset and widget IDs.
 
 Stage 2: v4 dock migration, owned Layout subtrees, persistent empty slots, bento backing rows, atomic swap/split/add/remove commands and child promotion are implemented. 33 tests, typecheck and build pass. Browser reload preserves prior IDs and displays migrated split rows. Legacy test corrected to reject the previously removed starter definition.
 
@@ -32,7 +32,7 @@ Stage 4: definition/provider/renderer metadata now includes authored web and add
 
 Mouse and pen hold/cancel passed in the built-in browser; touch hold/cancel passed in Edge because the built-in browser does not expose touch dispatch. Keyboard targets are explicitly selected within the same coordinator, including tab insertion boundaries and readable rejected targets. Native horizontal wheel browsing changes real carousel children without starting a dock drag. Game arrows and authored iframe buttons remain usable. Light/dark, 375/768/1024/1440 widths and reduced motion were checked; no page-wide horizontal overflow was observed. Mobile navigation, clipped target rejection, carousel resize alignment, management focus and presentation layer stacking were corrected during these checks.
 
-Final checks: 39 tests, typecheck and standalone build. `build:component` also passed a real pinned P3 build/inspection/invocation: 98,535 bytes, SHA-256 `3066f97957e7c77f8415c848ba686cb7205991bd4a71375a3d12d8676bded199`, output `Hello, World!`. This verifies the local sample source, not an automatic rebuild of older browser-stored unit source. Storage keys, source/grant/build boundaries, serialized IDs and artifact contracts are retained.
+Final checks: 39 tests, typecheck and standalone build. `build:component` also passed a real pinned P3 build/inspection/invocation: 98,535 bytes, SHA-256 `3066f97957e7c77f8415c848ba686cb7205991bd4a71375a3d12d8676bded199`, output `Hello, World!`. This verifies the local sample source, not an automatic rebuild of older browser-stored asset source. Storage keys, source/grant/build boundaries, serialized IDs and artifact contracts are retained.
 
 ## UI refinement follow-up
 

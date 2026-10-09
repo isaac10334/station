@@ -10,7 +10,7 @@ const apply = (layout: ReturnType<typeof createDockLayout>, command: Parameters<
 
 describe("dock document", () => {
   test("migrates flat placements, sizes, browser preference, and deduplicates the browser", () => {
-    const dock = migrateDock({ sidebar: ["unit-browser", "widget:snake", "unit-browser"], bottom: ["widget:components"], widgetSizes: { snake: "compact" }, bottomSize: 99, browserView: "list" }, ["welcome"]);
+    const dock = migrateDock({ sidebar: ["asset-browser", "widget:snake", "asset-browser"], bottom: ["widget:components"], widgetSizes: { snake: "compact" }, bottomSize: 99, browserView: "list" }, ["welcome"]);
     expect(surfacePanels(dock, "sidebar")).toContain(BROWSER_ID);
     expect(surfacePanels(dock, "sidebar")).toContain("widget:snake:legacy-0");
     expect(Object.values(dock.panels).some((panel) => panel.kind === "widget" && (panel.widget as string) === "components")).toBe(false);
@@ -32,67 +32,67 @@ describe("dock document", () => {
   });
 
   test("moves panels across docks, tabs, and nested splits without duplication", () => {
-    let dock = apply(createDockLayout([]), { type: "openUnit", unitId: "alpha" });
+    let dock = apply(createDockLayout([]), { type: "openAsset", assetId: "alpha" });
     const main = dock.surfaces.main!;
     expect(main.kind).toBe("stack");
-    dock = apply(dock, { type: "openUnit", unitId: "beta", target: { surface: "main", nodeId: main.id, intent: "right" } });
+    dock = apply(dock, { type: "openAsset", assetId: "beta", target: { surface: "main", nodeId: main.id, intent: "right" } });
     expect(dock.surfaces.main?.kind).toBe("split");
     const split = dock.surfaces.main;
     if (split?.kind !== "split") return;
-    dock = apply(dock, { type: "move", panelId: "unit-view:alpha", target: { surface: "main", nodeId: split.second.id, intent: "tab" } });
-    expect(surfacePanels(dock, "main").filter((id) => id === "unit-view:alpha")).toHaveLength(1);
-    expect(surfacePanels(dock, "main")).toContain("unit-view:beta");
+    dock = apply(dock, { type: "move", panelId: "asset-view:alpha", target: { surface: "main", nodeId: split.second.id, intent: "tab" } });
+    expect(surfacePanels(dock, "main").filter((id) => id === "asset-view:alpha")).toHaveLength(1);
+    expect(surfacePanels(dock, "main")).toContain("asset-view:beta");
     dock = apply(dock, { type: "move", panelId: BROWSER_ID, target: { surface: "sidebar", intent: "append" } });
     expect(panelSurface(dock, BROWSER_ID)).toBe("sidebar");
     expect(surfacePanels(dock, "bottom")).toEqual([]);
   });
 
   test("inserts tabs at visible boundaries when reordering within a stack", () => {
-    let dock = apply(createDockLayout([]), { type: "openUnit", unitId: "alpha" });
-    dock = apply(dock, { type: "openUnit", unitId: "beta" });
+    let dock = apply(createDockLayout([]), { type: "openAsset", assetId: "alpha" });
+    dock = apply(dock, { type: "openAsset", assetId: "beta" });
     const stack = dock.surfaces.main;
     if (stack?.kind !== "stack") throw new Error("Expected main tab stack");
-    dock = apply(dock, { type: "move", panelId: "unit-view:alpha", target: { surface: "main", nodeId: stack.id, intent: "tab", index: 3 } });
-    expect((dock.surfaces.main as typeof stack).tabs).toEqual(["workspace-home", "unit-view:beta", "unit-view:alpha"]);
-    dock = apply(dock, { type: "move", panelId: "unit-view:beta", target: { surface: "main", nodeId: stack.id, intent: "tab", index: 0 } });
-    expect((dock.surfaces.main as typeof stack).tabs).toEqual(["unit-view:beta", "workspace-home", "unit-view:alpha"]);
-    const same = reduceDock(dock, { type: "move", panelId: "unit-view:beta", target: { surface: "main", nodeId: stack.id, intent: "tab", index: 1 } });
+    dock = apply(dock, { type: "move", panelId: "asset-view:alpha", target: { surface: "main", nodeId: stack.id, intent: "tab", index: 3 } });
+    expect((dock.surfaces.main as typeof stack).tabs).toEqual(["workspace-home", "asset-view:beta", "asset-view:alpha"]);
+    dock = apply(dock, { type: "move", panelId: "asset-view:beta", target: { surface: "main", nodeId: stack.id, intent: "tab", index: 0 } });
+    expect((dock.surfaces.main as typeof stack).tabs).toEqual(["asset-view:beta", "workspace-home", "asset-view:alpha"]);
+    const same = reduceDock(dock, { type: "move", panelId: "asset-view:beta", target: { surface: "main", nodeId: stack.id, intent: "tab", index: 1 } });
     expect(same.ok).toBe(true);
     expect(same.layout).toBe(dock);
   });
 
   test("rejects invalid drops atomically, including self target and reserved surfaces", () => {
     const dock = createDockLayout([]);
-    const forbidden = reduceDock(dock, { type: "move", panelId: BROWSER_ID, target: { surface: "dashboard", intent: "append" } });
+    const forbidden = reduceDock(dock, { type: "move", panelId: NAVIGATION_ID, target: { surface: "dashboard", intent: "append" } });
     expect(forbidden).toMatchObject({ ok: false, layout: dock });
     const self = reduceDock(dock, { type: "move", panelId: BROWSER_ID, target: { surface: "bottom", nodeId: "stack:bottom", intent: "tab" } });
     expect(self.ok).toBe(false);
     expect(self.layout).toBe(dock);
-    expect(placementReason(dock.panels[BROWSER_ID], { surface: "main", intent: "tab" })).toMatch(/dock/);
+    expect(placementReason(dock.panels[BROWSER_ID], { surface: "main", intent: "tab" })).toBeNull();
     expect(dropReason(dock, dock.panels[BROWSER_ID], { surface: "bottom", nodeId: "stack:bottom", intent: "tab" })).toMatch(/panel being moved/);
     expect(placementReason(dock.panels[BROWSER_ID], { surface: "bottom", intent: "append", allowedTags: ["widget"] })).toMatch(/slot/);
   });
 
   test("opening a Component focuses its existing panel and finds a stack after splitting", () => {
-    let dock = apply(createDockLayout([]), { type: "openUnit", unitId: "alpha" });
+    let dock = apply(createDockLayout([]), { type: "openAsset", assetId: "alpha" });
     dock = apply(dock, { type: "move", panelId: "workspace-home", target: { surface: "main", nodeId: "stack:main", intent: "right" } });
     expect(dock.surfaces.main?.kind).toBe("split");
-    dock = apply(dock, { type: "openUnit", unitId: "beta" });
-    expect(surfacePanels(dock, "main")).toContain("unit-view:beta");
-    dock = apply(dock, { type: "move", panelId: "unit-view:alpha", target: { surface: "sidebar", intent: "append" } });
-    dock = apply(dock, { type: "openUnit", unitId: "alpha" });
-    expect(panelSurface(dock, "unit-view:alpha")).toBe("sidebar");
+    dock = apply(dock, { type: "openAsset", assetId: "beta" });
+    expect(surfacePanels(dock, "main")).toContain("asset-view:beta");
+    dock = apply(dock, { type: "move", panelId: "asset-view:alpha", target: { surface: "sidebar", intent: "append" } });
+    dock = apply(dock, { type: "openAsset", assetId: "alpha" });
+    expect(panelSurface(dock, "asset-view:alpha")).toBe("sidebar");
   });
 
   test("resize, activation, and maximize are persistent commands", () => {
-    let dock = apply(createDockLayout([]), { type: "openUnit", unitId: "a" });
+    let dock = apply(createDockLayout([]), { type: "openAsset", assetId: "a" });
     dock = apply(dock, { type: "activate", panelId: "workspace-home" });
     expect((dock.surfaces.main as { active: string }).active).toBe("workspace-home");
     dock = apply(dock, { type: "resizeBottom", size: 52 });
-    dock = apply(dock, { type: "maximize", panelId: "unit-view:a" });
+    dock = apply(dock, { type: "maximize", panelId: "asset-view:a" });
     const restored = migrateDock(JSON.parse(JSON.stringify(dock)));
     expect(restored.bottomSize).toBe(52);
-    expect(restored.maximized).toBe("unit-view:a");
+    expect(restored.maximized).toBe("asset-view:a");
   });
 });
 
@@ -107,16 +107,16 @@ describe("host surface policy and recovery", () => {
   test("sidebar and bottom reject splits; main stops at four leaves", () => {
     let dock = createDockLayout([]);
     expect(surfacePanels(dock, "sidebar")).toEqual([NAVIGATION_ID]);
-    const sidebar = reduceDock(dock, { type: "openUnit", unitId: "a", target: { surface: "sidebar", intent: "right", nodeId: "stack:sidebar" } });
+    const sidebar = reduceDock(dock, { type: "openAsset", assetId: "a", target: { surface: "sidebar", intent: "right", nodeId: "stack:sidebar" } });
     expect(sidebar).toMatchObject({ ok: false, layout: dock });
     for (let n = 1; n <= 3; n++) {
       const root = dock.surfaces.main!;
-      const result = reduceDock(dock, { type: "openUnit", unitId: `split-${n}`, target: { surface: "main", intent: "right", nodeId: root.id } });
+      const result = reduceDock(dock, { type: "openAsset", assetId: `split-${n}`, target: { surface: "main", intent: "right", nodeId: root.id } });
       expect(result.ok).toBe(true);
       dock = result.layout;
     }
     expect(leafStacks(dock.surfaces.main)).toBe(4);
-    const rejected = reduceDock(dock, { type: "openUnit", unitId: "fifth", target: { surface: "main", intent: "right", nodeId: dock.surfaces.main!.id } });
+    const rejected = reduceDock(dock, { type: "openAsset", assetId: "fifth", target: { surface: "main", intent: "right", nodeId: dock.surfaces.main!.id } });
     expect(rejected).toMatchObject({ ok: false, layout: dock });
     expect(DEFAULT_DOCK_POLICY.sidebar.maxLeafStacks).toBe(1);
     expect(reduceDock(dock, { type: "visibility", surface: "dashboard", hidden: true }).ok).toBe(false);
@@ -125,33 +125,33 @@ describe("host surface policy and recovery", () => {
   test("a host can lower the main leaf limit for commands and migration", () => {
     const policy = { ...DEFAULT_DOCK_POLICY, main: { ...DEFAULT_DOCK_POLICY.main, maxLeafStacks: 1 } };
     const base = createDockLayout([]);
-    expect(reduceDock(base, { type: "openUnit", unitId: "a", target: { surface: "main", intent: "right", nodeId: "stack:main" } }, policy).ok).toBe(false);
-    const old = apply(base, { type: "openUnit", unitId: "a", target: { surface: "main", intent: "right", nodeId: "stack:main" } });
+    expect(reduceDock(base, { type: "openAsset", assetId: "a", target: { surface: "main", intent: "right", nodeId: "stack:main" } }, policy).ok).toBe(false);
+    const old = apply(base, { type: "openAsset", assetId: "a", target: { surface: "main", intent: "right", nodeId: "stack:main" } });
     const repaired = migrateDock(old, [], policy);
     expect(leafStacks(repaired.surfaces.main)).toBe(1);
-    expect(surfacePanels(repaired, "main")).toEqual(["workspace-home", "unit-view:a"]);
+    expect(surfacePanels(repaired, "main")).toEqual(["workspace-home", "asset-view:a"]);
   });
 
   test("migration merges old sidebar splits without losing tab order or identities", () => {
     let dock = createDockLayout([]);
-    dock = apply(dock, { type: "openUnit", unitId: "a", target: { surface: "sidebar", intent: "tab" } });
-    dock = apply(dock, { type: "openUnit", unitId: "b", target: { surface: "sidebar", intent: "tab" } });
+    dock = apply(dock, { type: "openAsset", assetId: "a", target: { surface: "sidebar", intent: "tab" } });
+    dock = apply(dock, { type: "openAsset", assetId: "b", target: { surface: "sidebar", intent: "tab" } });
     const saved = structuredClone(dock);
     saved.surfaces.sidebar = { kind: "split", id: "old-split", axis: "horizontal", ratio: .5,
-      first: { kind: "stack", id: "old-first", tabs: [NAVIGATION_ID, "unit-view:a"], active: "unit-view:a" },
-      second: { kind: "stack", id: "old-second", tabs: ["unit-view:b"], active: "unit-view:b" } };
+      first: { kind: "stack", id: "old-first", tabs: [NAVIGATION_ID, "asset-view:a"], active: "asset-view:a" },
+      second: { kind: "stack", id: "old-second", tabs: ["asset-view:b"], active: "asset-view:b" } };
     const restored = migrateDock(saved);
     expect(leafStacks(restored.surfaces.sidebar)).toBe(1);
-    expect(surfacePanels(restored, "sidebar")).toEqual([NAVIGATION_ID, "unit-view:a", "unit-view:b"]);
+    expect(surfacePanels(restored, "sidebar")).toEqual([NAVIGATION_ID, "asset-view:a", "asset-view:b"]);
   });
 
   test("migration relocates incompatible panels without replacing other main tabs", () => {
-    let dock = apply(createDockLayout([]), { type: "openUnit", unitId: "keep" });
+    let dock = apply(createDockLayout([]), { type: "openAsset", assetId: "keep" });
     const saved = structuredClone(dock);
-    saved.surfaces.main = { kind: "stack", id: "stack:main", tabs: ["unit-view:keep"], active: "unit-view:keep" };
+    saved.surfaces.main = { kind: "stack", id: "stack:main", tabs: ["asset-view:keep"], active: "asset-view:keep" };
     saved.surfaces.sidebar = { kind: "stack", id: "stack:sidebar", tabs: ["workspace-navigation", "workspace-home"], active: "workspace-navigation" };
     dock = migrateDock(saved, []);
-    expect(surfacePanels(dock, "main")).toEqual(["workspace-home", "unit-view:keep"]);
+    expect(surfacePanels(dock, "main")).toEqual(["workspace-home", "asset-view:keep"]);
     expect(surfacePanels(dock, "sidebar")).toEqual(["workspace-navigation"]);
   });
 

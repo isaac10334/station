@@ -154,6 +154,8 @@ export function SidebarContent({ className, children, onKeyDown, "aria-label": l
         onKeyDown={(e) => {
           onKeyDown?.(e);
           if (e.defaultPrevented || !["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+          // Portaled filter/editor controls bubble through the sidebar but own their keys.
+          if (!(e.target instanceof Element) || !e.target.closest("[data-sidebar-row]")) return;
           const rows = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-sidebar-row]") ?? []).filter(
             (el) => !el.closest("[hidden]") && !el.matches(":disabled,[aria-disabled=true]"),
           );

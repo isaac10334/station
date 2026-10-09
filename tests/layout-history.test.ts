@@ -9,9 +9,9 @@ const memory = () => {
 
 test("layout undo/redo restores panel identity and active tab; source edits are separate", () => {
   const store = createStore(memory());
-  const id = store.createUnit("History test");
-  store.dispatchDock({ type: "openUnit", unitId: id });
-  const panelId = `unit-view:${id}`;
+  const id = store.createAsset("History test");
+  store.dispatchDock({ type: "openAsset", assetId: id });
+  const panelId = `asset-view:${id}`;
   store.dispatchDock({ type: "close", panelId });
   expect(panelSurface(store.active().dock, panelId)).toBeNull();
   expect(store.undoLayout()).toBe(true);
@@ -24,15 +24,15 @@ test("layout undo/redo restores panel identity and active tab; source edits are 
   expect(store.selected()?.files["src/lib.rs"]).toBe("edited");
 });
 
-test("history is per workspace and deleted units cannot return through undo", () => {
+test("history is per workspace and deleted assets cannot return through undo", () => {
   const store = createStore(memory());
-  const id = store.createUnit("Gone");
-  store.dispatchDock({ type: "openUnit", unitId: id });
+  const id = store.createAsset("Gone");
+  store.dispatchDock({ type: "openAsset", assetId: id });
   const first = store.active().id;
   store.createWorkspace("Other");
   expect(store.layoutHistory().canUndo).toBe(false);
   store.selectWorkspace(first);
   expect(store.layoutHistory().canUndo).toBe(true);
-  store.deleteUnits([id]);
+  store.deleteAssets([id]);
   expect(store.layoutHistory().canUndo).toBe(false);
 });

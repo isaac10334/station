@@ -14,6 +14,7 @@ import { SortableContext, useSortable, horizontalListSortingStrategy } from "@dn
 import { motion, useReducedMotion } from "motion/react";
 import { Box, ExternalLink, LayoutGrid, Maximize2, Minimize2, Plus, X, Columns2, Rows2 } from "lucide-react";
 import { IconAction } from "@/components/ui/icon-action";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Panel as ResizePanel, PanelGroup, PanelHandle } from "@/components/ui/resizable-panels";
 import { Tabs, TabsList, TabsPanel, TabsPanels, TabsTab } from "@/components/ui/tabs";
 import { BROWSER_ID, DEFAULT_DOCK_POLICY, dropReason, findNode, hostSurface, panelSurface, surfacePanels, visitNode, type Command, type DockLayout, type DockPolicy, type Node, type Panel, type Result, type Stack, type Surface, type Target } from "./core";
@@ -22,7 +23,15 @@ import { clippedBounds } from "./geometry";
 import { PresentationHost, PresentationSlot, revealPresentation } from "./presentations";
 import { WIDGET_CATALOG } from "../widget-catalog";
 
-type ActiveDrag = { kind: "panel"; panelId: string; title: string };
+/** Physical moves the live widget; badge keeps a compact title preview. */
+export type WidgetDragMode = "physical" | "badge";
+type ActiveDrag = { kind: "panel"; panelId: string; title: string; dragMode?: WidgetDragMode };
+// Mouse/pen headings move directly; touch pickup requires a deliberate hold.
+class HeadingPointerSensor extends PointerSensor {
+  constructor(props: ConstructorParameters<typeof PointerSensor>[0]) {
+    super({ ...props, options: { ...props.options, activationConstraint: (props.event as PointerEvent).pointerType === "touch" ? { delay: 400, tolerance: 6 } : { distance: 6 } } });
+  }
+}
 type Controller = {
   layout: DockLayout; command: (command: Command) => Result; active: ActiveDrag | null;
   over: string | null; tabDrop: { id: string; after: boolean } | null; debugDropZones: boolean; debugLayout: boolean; wiggle: boolean;
@@ -31,6 +40,8 @@ type Controller = {
   panelTitle: (panel: Panel) => string;
   policy: DockPolicy;
   pressing: string | null; catalogTarget: Target | null; openCatalog: (target: Target | null) => void;
+  editingWidgets: boolean; setEditingWidgets: (value: boolean) => void;
+  widgetDragMode: WidgetDragMode | ((panel: Panel) => WidgetDragMode);
 };
 const DockContext = createContext<Controller | null>(null);
 /** Access the controlled command interface from custom panel controls and surfaces. */
@@ -48,14 +59,19 @@ export type DockHostProps = {
   debugDropZones?: boolean;
   debugLayout?: boolean;
   wiggle?: boolean;
+  /** Preview mode for widgets, optionally resolved per instance. Other panels keep a badge.
+   * @example widgetDragMode={(panel) => panel.kind === "web-widget" ? "badge" : "physical"}
+   */
+  widgetDragMode?: WidgetDragMode | ((panel: Panel) => WidgetDragMode);
   policy?: DockPolicy;
   children: ReactNode;
 };
-const defaultPanelTitle = (panel: Panel) => panel.kind === "widget" ? WIDGET_CATALOG[panel.widget].title : "unitId" in panel ? panel.unitId : panel.kind === "home" ? "Overview" : panel.kind === "browser" ? "Unit browser" : "Navigation";
-export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultPanelTitle, debugDropZones: initialDropZones = false, debugLayout: initialDebugLayout = false, wiggle: initialWiggle = false, policy = DEFAULT_DOCK_POLICY, children }: DockHostProps) {
+const defaultPanelTitle = (panel: Panel) => panel.kind === "widget" ? WIDGET_CATALOG[panel.widget].title : "assetId" in panel ? panel.assetId : panel.kind === "home" ? "Overview" : panel.kind === "browser" ? "Asset browser" : "Navigation";
+export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultPanelTitle, debugDropZones: initialDropZones = false, debugLayout: initialDebugLayout = false, wiggle: initialWiggle = false, widgetDragMode = "physical", policy = DEFAULT_DOCK_POLICY, children }: DockHostProps) {
   const [debugDropZones, setDebugDropZones] = useState(initialDropZones);
   const [debugLayout, setDebugLayout] = useState(initialDebugLayout);
   const [wiggle, setWiggle] = useState(initialWiggle);
+  const [editingWidgets, setEditingWidgets] = useState(false);
   const [active, setActive] = useState<ActiveDrag | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [tabDrop, setTabDrop] = useState<{ id: string; after: boolean } | null>(null);
@@ -66,10 +82,11 @@ export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultP
   const modifiers = useRef({ shift: false, alt: false });
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const keyboardTarget = useRef<string | null>(null);
-  const keyboardCoordinates = useMemo(() => createDockKeyboardCoordinates((id) => { keyboardTarget.current = id; }), []);
+  const keyboardCoordinates = useMemo(() => createDockKeyboardCoordinates((id) => { keyboardTarget.current = id; }, (target, panelId, point) =>
+    !dropReason(layout, layout.panels[panelId], { ...target, intent: resolveIntent(target.intent, modifiers.current, point) }, policy)), [layout, policy]);
   const reduceMotion = !!useReducedMotion();
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: 400, tolerance: 6 } }),
+    useSensor(HeadingPointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates.coordinateGetter, scrollBehavior: "instant", keyboardCodes: { start: ["Space", "Enter"], end: ["Space", "Enter"], cancel: ["Escape"] } }),
   );
   useEffect(() => {
@@ -81,15 +98,30 @@ export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultP
     return () => { window.removeEventListener("keydown", update); window.removeEventListener("keyup", update); window.removeEventListener("blur", clear); window.removeEventListener("pointermove", move); };
   }, []);
   const command = (command: Command) => onCommand(command);
-  const context = useMemo<Controller>(() => ({ layout, command, active, over, tabDrop, debugDropZones, debugLayout, setDebugDropZones, setDebugLayout, setWiggle, wiggle, renderPanel, panelTitle, policy, pressing, catalogTarget, openCatalog }),
-    [layout, onCommand, active, over, tabDrop, debugDropZones, debugLayout, wiggle, reduceMotion, renderPanel, panelTitle, policy, pressing, catalogTarget]);
+  useEffect(() => {
+    if (!editingWidgets) return;
+    const exit = (event: KeyboardEvent) => {
+      // An active drag or an open overlay owns the first Escape.
+      if (event.key === "Escape" && !event.defaultPrevented && !active && !document.querySelector('[role="dialog"], [role="menu"]')) {
+        setEditingWidgets(false);
+        announce("Widget editing finished.");
+      }
+    };
+    window.addEventListener("keydown", exit);
+    return () => window.removeEventListener("keydown", exit);
+  }, [editingWidgets, active]);
+  const context = useMemo<Controller>(() => ({ layout, command, active, over, tabDrop, debugDropZones, debugLayout, setDebugDropZones, setDebugLayout, setWiggle, wiggle, renderPanel, panelTitle, policy, pressing, catalogTarget, openCatalog, editingWidgets, setEditingWidgets, widgetDragMode }),
+    [layout, onCommand, active, over, tabDrop, debugDropZones, debugLayout, wiggle, reduceMotion, renderPanel, panelTitle, policy, pressing, catalogTarget, editingWidgets, widgetDragMode]);
   const start = (event: DragStartEvent) => {
     keyboardCoordinates.reset();
     const item = event.active.data.current?.item as ActiveDrag | undefined;
     const activation = event.activatorEvent;
     pointer.current = activation instanceof PointerEvent ? { x: activation.clientX, y: activation.clientY } : null;
     setPressing(null);
-    if (item) { setActive(item); announce(`Picked up ${item.title}. Arrow keys choose a destination. Enter commits; Escape cancels.`); }
+    if (item) {
+      const frame = document.querySelector<HTMLElement>(`[data-presentation-owner="${CSS.escape(item.panelId)}"]`);
+      const visible = frame && getComputedStyle(frame).visibility === "visible";
+      setActive({ ...item, dragMode: visible ? item.dragMode : "badge" }); announce(`Picked up ${item.title}. Arrow keys choose a destination. Enter commits; Escape cancels.`); }
   };
   const tabBoundary = (event: DragMoveEvent | DragEndEvent) => {
     const target = event.over?.data.current?.target as Target | undefined;
@@ -114,7 +146,7 @@ export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultP
       const element = target.nodeId ? document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(target.nodeId)}"]`) : null;
       const bounds = element?.querySelector(".dock-stack-body")?.getBoundingClientRect() ?? element?.getBoundingClientRect() ?? rect;
       const horizontal = target.intent === "left" || target.intent === "right", vertical = target.intent === "top" || target.intent === "bottom";
-      setPreview({ x: bounds.left + (target.intent === "right" ? bounds.width / 2 : 0), y: bounds.top + (target.intent === "bottom" ? bounds.height / 2 : 0), width: bounds.width / (horizontal ? 2 : 1), height: bounds.height / (vertical ? 2 : 1), label: reason ?? `${target.intent === "swap" ? "Swap both widgets" : target.intent === "tab" ? "Join this slot" : target.intent === "append" ? "Create a slot here" : `Split ${target.intent}`} · Enter or release to place`, rejected: !!reason });
+      setPreview(reason && !debugDropZones ? null : { x: bounds.left + (target.intent === "right" ? bounds.width / 2 : 0), y: bounds.top + (target.intent === "bottom" ? bounds.height / 2 : 0), width: bounds.width / (horizontal ? 2 : 1), height: bounds.height / (vertical ? 2 : 1), label: reason ?? (target.intent === "swap" ? "Swap" : target.intent === "tab" ? "Join tabs" : target.intent === "append" ? "Add slot" : `Split ${target.intent}`), rejected: !!reason });
     } else if (item?.kind === "panel" && String(event.active.id).startsWith("handle:float:") && layout.floating[item.panelId]) {
       const position = layout.floating[item.panelId];
       setPreview({ x: Math.max(0, position.x + event.delta.x), y: Math.max(0, position.y + event.delta.y), width: Math.min(position.width, innerWidth - 16), height: Math.min(position.height, innerHeight - 64), label: "Move floating window · release to place", rejected: false });
@@ -155,11 +187,21 @@ export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultP
     }));
   };
   return <DockContext.Provider value={context}>
-    <DndContext sensors={sensors} measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} accessibility={{ restoreFocus: false, screenReaderInstructions: { draggable: "Press Space or Enter to pick up. Arrow keys choose a target. Enter places; Escape cancels." }, announcements: { onDragStart: () => undefined, onDragMove: () => undefined, onDragOver: () => undefined, onDragEnd: () => undefined, onDragCancel: () => undefined } }} onDragPending={(event) => setPressing(String(event.id))} onDragAbort={() => { setPressing(null); announce("Pickup cancelled."); }} collisionDetection={(args) => {
-      // Sortable tabs also register as droppables. Prefer the precise overlay
-      // when pointer and overlay overlap, and never collide with the source.
-      if (keyboardTarget.current && args.droppableContainers.some((item) => item.id === keyboardTarget.current)) return [{ id: keyboardTarget.current }];
-      const hits = pointerWithin(args).filter((hit) => {
+    <DndContext autoScroll={false} sensors={sensors} measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} accessibility={{ restoreFocus: false, screenReaderInstructions: { draggable: "Press Space or Enter to pick up. Arrow keys choose a target. Enter places; Escape cancels." }, announcements: { onDragStart: () => undefined, onDragMove: () => undefined, onDragOver: () => undefined, onDragEnd: () => undefined, onDragCancel: () => undefined } }} onDragPending={(event) => setPressing(String(event.id))} onDragAbort={() => setPressing(null)} collisionDetection={(args) => {
+      // Invalid zones must not mask a valid destination beneath them. Resolve
+      // modifiers first, since Alt can turn a rejected swap into a valid tab join.
+      const panelId = args.active.data.current?.item?.panelId as string | undefined;
+      const containers = args.droppableContainers.filter((container) => {
+        if (debugDropZones) return true;
+        const target = container.data.current?.target as Target | undefined;
+        const rect = args.droppableRects.get(container.id);
+        if (!target || !panelId || !rect) return false;
+        const point = { x: (args.pointerCoordinates?.x ?? rect.left + rect.width / 2) - rect.left, y: (args.pointerCoordinates?.y ?? rect.top + rect.height / 2) - rect.top, width: rect.width, height: rect.height };
+        return !dropReason(layout, layout.panels[panelId], { ...target, intent: resolveIntent(target.intent, modifiers.current, point) }, policy);
+      });
+      const candidates = { ...args, droppableContainers: containers };
+      if (keyboardTarget.current && containers.some((item) => item.id === keyboardTarget.current)) return [{ id: keyboardTarget.current }];
+      const hits = pointerWithin(candidates).filter((hit) => {
         if (hit.id === args.active.id) return false;
         const node = args.droppableContainers.find((item) => item.id === hit.id)?.node.current;
         if (!node || !args.pointerCoordinates) return false;
@@ -168,7 +210,7 @@ export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultP
       });
       const zones = hits.filter((hit) => String(hit.id).startsWith("dock-target:"));
       zones.sort((a, b) => { const ra = args.droppableRects.get(a.id)!, rb = args.droppableRects.get(b.id)!; return ra.width * ra.height - rb.width * rb.height; });
-      return zones.length ? zones : hits.length ? hits : args.pointerCoordinates ? [] : rectIntersection(args).filter((hit) => hit.id !== args.active.id);
+      return zones.length ? zones : hits.length ? hits : args.pointerCoordinates ? [] : rectIntersection(candidates).filter((hit) => hit.id !== args.active.id);
     }} onDragStart={start} onDragMove={move} onDragOver={(event) => {
       move(event);
       setOver(event.over?.id?.toString() ?? null);
@@ -182,29 +224,41 @@ export function DockHost({ layout, onCommand, renderPanel, panelTitle = defaultP
       }
     }} onDragCancel={() => { keyboardCoordinates.reset(); pointer.current = null; setActive(null); setOver(null); setTabDrop(null); setPressing(null); setPreview(null); announce("Move cancelled. Original layout retained."); }} onDragEnd={finish}>
       <PresentationHost layout={layout} renderPanel={renderPanel}>{children}</PresentationHost>
+      {editingWidgets && <div className="station-widget-edit-bar" role="region" aria-label="Widget editing"><span role="status">Drag headings to move widgets</span><button type="button" disabled={!!active} onClick={() => { setEditingWidgets(false); announce("Widget editing finished."); }}>Done</button></div>}
       <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
       {active && preview && <div className="station-destination-preview" data-rejected={preview.rejected || undefined} style={{ left: preview.x, top: preview.y, width: preview.width, height: preview.height }}><span>{preview.label}</span></div>}
       <DragOverlay dropAnimation={reduceMotion ? null : { duration: 170, easing: "cubic-bezier(0.16,1,0.3,1)" }}>
-        {active && <motion.div className="dock-drag-ghost" initial={reduceMotion ? false : { opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .14, ease: [0.16, 1, 0.3, 1] }}><span className="dock-drag-ghost-icon"><Box size={17} /></span><strong>{active.title}</strong></motion.div>}
+        {active && active.dragMode !== "physical" && <motion.div className="dock-drag-ghost" initial={reduceMotion ? false : { opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .14, ease: [0.16, 1, 0.3, 1] }}><span className="dock-drag-ghost-icon"><Box size={17} /></span><strong>{active.title}</strong></motion.div>}
       </DragOverlay>
     </DndContext>
   </DockContext.Provider>;
 }
 
-/** Headings own pickup listeners; interactive content and header actions do not. */
-export function WidgetDragHandle({ panelId, title, context = "front", heading = false, tabValue, mobileSelected, onActivate }: { panelId: string; title: string; context?: string; heading?: boolean; tabValue?: string; mobileSelected?: boolean; onActivate?: () => void }) {
-  const { pressing, active, wiggle, command } = useDockController();
+/** A heading is the pickup surface; content controls retain their own input.
+ * `dragMode` overrides the host resolver for this handle only. Physical pickup
+ * uses the existing mounted presentation, including Layout children.
+ */
+export function WidgetDragHandle({ panelId, title, context = "front", heading = false, tabValue, mobileSelected, onActivate, dragMode }: { panelId: string; title: string; context?: string; heading?: boolean; tabValue?: string; mobileSelected?: boolean; onActivate?: () => void; dragMode?: WidgetDragMode }) {
+  const { pressing, command, layout, widgetDragMode } = useDockController();
+  const panel = layout.panels[panelId];
+  const widget = panel?.kind === "widget" || panel?.kind === "web-widget";
+  const mode = dragMode ?? (widget ? typeof widgetDragMode === "function" ? widgetDragMode(panel) : widgetDragMode : "badge");
   const id = `handle:${context}:${panelId}`;
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id, data: { item: { kind: "panel", panelId, title } satisfies ActiveDrag } });
+  const item = { kind: "panel", panelId, title, dragMode: mode } satisfies ActiveDrag;
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id, data: { item } });
   const Heading = tabValue ? TabsTab : "button";
   return <Heading type="button" value={tabValue} ref={(node) => { setNodeRef(node); setActivatorNodeRef(node); }} {...attributes} {...listeners}
     role={tabValue || mobileSelected !== undefined ? "tab" : attributes.role} {...(mobileSelected === undefined ? {} : { "aria-selected": mobileSelected })}
-    onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); listeners?.onPointerDown?.(event); }}
-    onLostPointerCapture={() => document.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }))}
+    onPointerDown={(event) => {
+      if (event.button !== 0 || !event.isPrimary) return;
+      // Keep pointer delivery when the lifted widget crosses opaque iframes.
+      event.currentTarget.setPointerCapture(event.pointerId);
+      listeners?.onPointerDown?.(event);
+    }}
+    onContextMenu={(event) => { if (widget) event.preventDefault(); }}
     onClick={() => { if (onActivate) onActivate(); else if (context.startsWith("tab:")) command({ type: "activate", panelId }); }}
     className={`station-drag-handle ${heading ? "station-heading-handle" : ""}`} data-instance-handle={panelId} data-pressing={pressing === id || undefined} data-dragging={isDragging || undefined}
-    data-wiggle={wiggle && active?.panelId === panelId || undefined}
-    aria-label={tabValue || mobileSelected !== undefined ? title : `Move ${title}`} title={context === "float" ? "Hold to move window; drop over a slot to dock · Space or Enter to pick up" : "Hold to move · Space or Enter to pick up, arrows to choose, Escape to cancel"}>{title}<span className="station-hold-progress" /></Heading>;
+    aria-label={tabValue || mobileSelected !== undefined ? title : `Move ${title}`} title="Drag to move · Touch: hold to pick up · Space or Enter to pick up, arrows to choose, Escape to cancel">{title}</Heading>;
 }
 
 function Zone({ target, className = "", label, showLabel = true }: { target: Target; className?: string; label: string; showLabel?: boolean }) {
@@ -215,7 +269,7 @@ function Zone({ target, className = "", label, showLabel = true }: { target: Tar
   const reason = panel ? dropReason(layout, panel, target, policy) : null;
   const visible = Boolean(active || debugDropZones);
   return <div ref={setNodeRef} id={id} className={`dock-drop-zone ${className}`} data-target-owner={target.ownerId} data-target-surface={target.surface} data-target-intent={target.intent} data-visible={visible || undefined} data-eligible={active && !reason || undefined} data-over={over === id || undefined} data-debug={debugDropZones || undefined} aria-label={label}>
-    {showLabel && (debugDropZones || over === id && active) && <span className="dock-zone-label">{reason ?? (debugDropZones ? `${target.intent} · ${target.nodeId ?? target.surface}` : label)}</span>}
+    {showLabel && debugDropZones && <span className="dock-zone-label">{reason ?? `${target.intent} · ${target.nodeId ?? target.surface}`}</span>}
   </div>;
 }
 function TargetLayer({ surface, nodeId, ownerId }: { surface: Surface; nodeId?: string; ownerId?: string }) {
@@ -259,7 +313,7 @@ function DockTab({ panelId, nodeId, surface, ownerId, index }: { panelId: string
 function TabRail({ node, surface, ownerId }: { node: Stack; surface: Surface; ownerId?: string }) {
   const { layout, command, openCatalog, active: dragging } = useDockController();
   const active = node.tabs.includes(node.active) ? node.active : node.tabs[0];
-  return <Tabs value={active} onValueChange={(value) => command({ type: "activate", panelId: String(value) })} variant="underline" size="sm">
+  return <Tabs value={active} onValueChange={(value) => command({ type: "activate", panelId: String(value) })} variant="underline" size="sm" data-dock-rail="connected">
     <div className="dock-stack-heading"><SortableContext items={node.tabs.map((id) => `panel:${id}`)} strategy={horizontalListSortingStrategy}>
       <TabsList className="dock-tabs-list" wrapperClassName="dock-tabs-wrapper" onKeyDown={(event) => { if ((dragging || event.key === " " || event.key === "Enter") && (event.target as HTMLElement).closest(".station-drag-handle")) event.preventBaseUIHandler(); }}>{node.tabs.map((id, index) => <DockTab key={id} panelId={id} nodeId={node.id} surface={surface} ownerId={ownerId} index={index} />)}</TabsList>
     </SortableContext><Zone target={{ surface, nodeId: node.id, ownerId, intent: "tab", index: node.tabs.length }} className="dock-tab-end" label="Add tab at end" showLabel={false} />
@@ -298,10 +352,10 @@ function StackView({ node, surface, ownerId }: { node: Stack; surface: Surface; 
   }, [active, carousel, node.tabs.join("|")]);
   if (!active) return <section className="station-empty-slot" data-node-id={node.id}><strong>Empty slot</strong><SlotControls nodeId={node.id} surface={surface} ownerId={ownerId} /><TargetLayer surface={surface} nodeId={node.id} ownerId={ownerId} /></section>;
   return <section className={`dock-stack dock-stack-${surface}`} data-node-id={node.id} data-tab-style="connected" tabIndex={-1}>
-    {(ownerId || surface !== "dashboard" || node.tabs.length > 1 || layout.panels[active].kind === "unit") && !(surface === "main" && layout.surfaces.main?.kind === "stack" && !ownerId) && <TabRail node={node} surface={surface} ownerId={ownerId} />}
+    {(ownerId || surface !== "dashboard" || layout.panels[active].kind === "browser" || node.tabs.length > 1 || layout.panels[active].kind === "asset") && !(surface === "main" && layout.surfaces.main?.kind === "stack" && !ownerId) && <TabRail node={node} surface={surface} ownerId={ownerId} />}
     <div className="dock-stack-body" role="tabpanel" aria-label={active}>
       {carousel ? <div ref={track} className="station-carousel" onScrollEnd={(event) => { const element = event.currentTarget; const index = Math.round(element.scrollLeft / Math.max(1, element.clientWidth)); if (node.tabs[index] && node.tabs[index] !== active) command({ type: "activate", panelId: node.tabs[index] }); }}>{node.tabs.map((id, index) => <div key={id} className="station-carousel-page" inert={id !== active}><PresentationSlot panel={layout.panels[id]} renderPanel={renderPanel} /><span className="station-carousel-hint">Swipe to browse · {index + 1} / {node.tabs.length}</span></div>)}</div>
-        : <PresentationSlot panel={layout.panels[active]} renderPanel={renderPanel} />}
+        : layout.panels[active].kind === "home" ? <ScrollArea className="dock-home-scroll" contentClassName="dock-home-content" fade={false} aria-label="Workspace dashboard"><PresentationSlot panel={layout.panels[active]} renderPanel={renderPanel} /></ScrollArea> : <PresentationSlot panel={layout.panels[active]} renderPanel={renderPanel} />}
       {layout.panels[active].kind !== "home" && <TargetLayer surface={surface} nodeId={node.id} ownerId={ownerId} />}
     </div>
     {debugLayout && <span className="dock-debug-node">{node.id} · stack</span>}
@@ -314,7 +368,7 @@ function NodeView({ node, surface, ownerId }: { node: Node; surface: Surface; ow
   useEffect(() => { const media = matchMedia("(max-width: 640px)"); const update = () => setNarrow(media.matches); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
   if (node.kind === "stack") return <StackView node={node} surface={surface} ownerId={ownerId} />;
   if (node.kind === "grid") return <div className="dock-grid" data-node-id={node.id} data-empty={node.cells.length === 0 || undefined}>
-    {node.cells.map((cell, index) => <motion.div layout={reducedMotion ? false : "position"} transition={{ layout: { duration: .28, ease: [0.2, 0.8, 0.2, 1] } }} className="dock-grid-cell" key={cell.id}><Zone target={{ surface, ownerId, intent: "append", index }} className="dock-grid-insert" label={`Insert widget before row ${index + 1}`} /><NodeView node={cell.node} surface={surface} ownerId={ownerId} /></motion.div>)}
+    {node.cells.map((cell, index) => <div className="dock-grid-cell" key={cell.id}><Zone target={{ surface, ownerId, intent: "append", index }} className="dock-grid-insert" label={`Insert widget before row ${index + 1}`} /><NodeView node={cell.node} surface={surface} ownerId={ownerId} /></div>)}
     <AddSlot surface={surface} ownerId={ownerId} index={node.cells.length} />
     {debugLayout && <span className="dock-debug-node">{node.id} · grid</span>}
   </div>;
@@ -345,7 +399,7 @@ export function DockOwnedLayout({ ownerId }: { ownerId: string }) {
 }
 /** Renders any surface from the same node tree. Empty docks expose one drop target during a drag. */
 export function DockSurface({ surface, className = "" }: { surface: Surface; className?: string }) {
-  const { layout, active, debugLayout, command, renderPanel, panelTitle } = useDockController();
+  const { layout, active, debugLayout, command, renderPanel, panelTitle, openCatalog } = useDockController();
   const root = layout.surfaces[surface];
   const max = layout.maximized;
   const hidden = Boolean(layout.hidden[surface] || max && surface !== "main");
@@ -358,7 +412,7 @@ export function DockSurface({ surface, className = "" }: { surface: Surface; cla
     </div>;
   }
   return <div className={`dock-surface dock-surface-${surface} ${className}`} data-debug={debugLayout || undefined} data-maximized={max && surface === "main" || undefined} hidden={hidden}>
-    {root ? <NodeView node={root} surface={surface} /> : <div className="dock-empty-surface">{active ? <span>Drop here</span> : surface === "dashboard" ? "Add a widget from the toolbar" : null}<Zone target={{ surface, intent: "append" }} className="dock-empty-target" label={`Dock in ${surface}`} /></div>}
+    {root ? <NodeView node={root} surface={surface} /> : surface === "bottom" ? <section className="station-empty-slot"><strong>Empty slot</strong><IconAction label="Add widget to bottom dock" onClick={() => openCatalog({ surface, intent: "append" })}><Plus size={17} /></IconAction><TargetLayer surface={surface} /></section> : <div className="dock-empty-surface">{active ? <span>Drop here</span> : surface === "dashboard" ? "Add a widget from the toolbar" : null}<Zone target={{ surface, intent: "append" }} className="dock-empty-target" label={`Dock in ${surface}`} /></div>}
   </div>;
 }
 
@@ -376,8 +430,8 @@ export function DockMobileSurface() {
   const ids = tabs.map((tab) => tab.panelId);
   const [selected, setSelected] = useState<string>(BROWSER_ID);
   const current = ids.includes(selected) ? selected : ids[0];
-  if (!current) return <div className="dock-mobile dock-empty-surface"><Zone target={{ surface: "bottom", intent: "append" }} className="dock-empty-target" label="Dock at bottom" /></div>;
-  return <div className="dock-mobile" data-tab-style={layout.panels[current].kind === "browser" ? "connected" : "pill"}>
+  if (!current) return <DockSurface surface="bottom" />;
+  return <div className="dock-mobile" data-tab-style="connected">
     <div className="dock-mobile-tabs" role="tablist" aria-label="Docked panels">{tabs.map(({ panelId, surface, nodeId, index }) => {
       const panel = layout.panels[panelId];
       const title = panelTitle(panel);

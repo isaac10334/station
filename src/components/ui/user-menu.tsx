@@ -1,4 +1,5 @@
 "use client";
+import { ActionTooltip } from "@/components/ui/action-tooltip";
 import { Avatar } from "@base-ui/react/avatar";
 import { Menu } from "@base-ui/react/menu";
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from "motion/react";
@@ -157,7 +158,7 @@ export function UserMenu({
         if (!next) setFailed(false);
       }}
     >
-      <Menu.Trigger
+      <ActionTooltip label={`Account: ${user.name}`}><Menu.Trigger
         aria-label={`Account: ${user.name}${status ? `, ${statusLabel[status]}` : ""}`}
         className={cn(
           "group/avatar relative inline-flex shrink-0 rounded-full outline-none",
@@ -171,7 +172,7 @@ export function UserMenu({
         )}
       >
         <UserAvatar name={user.name} src={user.image} size={size} status={status} />
-      </Menu.Trigger>
+      </Menu.Trigger></ActionTooltip>
 
       <Menu.Portal container={container}>
         <Menu.Positioner side={side} align={align} sideOffset={8} collisionPadding={8} className="z-(--z-popover) outline-none">

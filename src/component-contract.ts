@@ -1,6 +1,8 @@
 /** The current P3 guest contract and the distinct grants for its host effects. */
-export const UNIT_HOST_INTERFACE = "unit:workspace/host@0.3.0";
-export const UNIT_SURFACE_INTERFACE = "unit:workspace/surface@0.3.0";
+// These wire IDs are compatibility contracts, shared by saved source, grants and compiled bytes.
+// Product terminology changes must not silently rename a WIT package or grant identity.
+export const ASSET_HOST_INTERFACE = "unit:workspace/host@0.3.0";
+export const ASSET_SURFACE_INTERFACE = "unit:workspace/surface@0.3.0";
 export const P3_CLOCK_INTERFACE = "wasi:clocks/monotonic-clock@0.3.1";
 
 export const HOST_LOG = "unit:workspace/host.log";

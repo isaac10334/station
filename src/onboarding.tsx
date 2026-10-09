@@ -10,7 +10,7 @@ export function Onboarding({ onContinue }: { onContinue: (identity: DemoIdentity
   const [signingIn, setSigningIn] = useState(false);
   return <Dialog open dismissible={false} onOpenChange={() => {}}><DialogContent size="md" showCloseButton={false} className="onboarding-card" backdropClassName="onboarding-dialog-backdrop" aria-label="Enter Station">
     <div className="onboarding-mark"><Box size={24} /></div>
-    <div className="eyebrow">UNIT WORKSPACE</div>
+    <div className="eyebrow">STATION</div>
     {!signingIn ? <><h1>Make a space for what you build.</h1><p>Open your personal workspace to create Rust Components, inspect capabilities, and arrange your dashboard.</p>
       <div className="onboarding-actions"><Button onClick={() => onContinue({ kind: "guest" })}>Continue as guest <ArrowRight size={16} /></Button><Button variant="outline" onClick={() => setSigningIn(true)}><Mail size={16} /> Demo sign in</Button></div>
       <div className="onboarding-honesty"><ShieldCheck size={15} /> Guest and demo identities stay on this device. Account services are not connected yet.</div></>

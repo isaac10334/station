@@ -4,17 +4,17 @@
 
 ## Direction
 
-- Let people place built-in views and, eventually, views contributed by different kinds of units in a coherent workspace. The host owns placement, focus, persistence, and permission checks.
+- Let people place built-in views and, eventually, views contributed by different kinds of assets in a coherent workspace. The host owns placement, focus, persistence, and permission checks.
 - Keep built-in React UI distinct from a future bounded UI capability for WebAssembly Components or other sandboxed extensions. A plugin should not gain arbitrary DOM or app storage access by contributing a view.
 - Treat **view**, **surface**, **placement**, **scope**, and **policy** as working vocabulary. Test these names against a real extension before making them public contracts.
 
 ## Questions to resolve
 
-- What is the smallest useful description and update protocol for a unit-contributed view? Which elements, events, and effects may the host accept, and how should it bound depth, payload size, and update rate?
-- How do view identity, focus, navigation, layout undo, and a unit's own document undo differ? What should survive reload, workspace switching, artifact updates, or revoked grants?
+- What is the smallest useful description and update protocol for an asset-contributed view? Which elements, events, and effects may the host accept, and how should it bound depth, payload size, and update rate?
+- How do view identity, focus, navigation, layout undo, and an asset's own document undo differ? What should survive reload, workspace switching, artifact updates, or revoked grants?
 - When should a view move between a tab, drawer, dialog, floating window, or full page, and should a shareable URL name the view without fixing its presentation?
 - How should pointer, keyboard, drag, drop, and shortcut scopes interact across built-in views, dialogs, editors, games, and plugin content? How should incompatible drop targets be explained and announced?
-- Should custom surfaces be host-installed extensions, granted unit capabilities, or both? Where should a reusable contract live: this app or Loop Kit?
+- Should custom surfaces be host-installed extensions, granted asset capabilities, or both? Where should a reusable contract live: this app or Loop Kit?
 - How should registration and grant review work for a new or changed import? Keep registration, grants, configuration, artifact identity, and transient view state distinct.
 
 ## Candidate slices

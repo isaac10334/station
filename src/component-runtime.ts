@@ -1,13 +1,13 @@
 /** Browser transport for verified P3 Component bytes and a one-shot fixed worker. */
 import { sha256, type BuiltArtifact } from "./build-contract";
 import { REQUIRED_GRANTS } from "./component-contract";
-import { hasCurrentArtifact, type ComponentUnit } from "./model";
+import { hasCurrentArtifact, type ComponentAsset } from "./model";
 import type { ComponentWorkerReply, ComponentWorkerRequest } from "./component-worker-contract";
 
 export type RunResult = Extract<ComponentWorkerReply, { ok: true }>;
 /** A scoped invocation contract; caller revocation is passed as an AbortSignal and terminates the worker. */
 export interface ComponentRunner {
-  run(unit: ComponentUnit, input: string, grants: ReadonlySet<string>, signal?: AbortSignal): Promise<RunResult>;
+  run(asset: ComponentAsset, input: string, grants: ReadonlySet<string>, signal?: AbortSignal): Promise<RunResult>;
 }
 
 /** Select Polyengine only for the inspected P3 profile; errors never trigger a fallback. */
@@ -19,13 +19,13 @@ export function selectComponentRuntime(artifact: BuiltArtifact): "polyengine" {
   throw new Error(`No compatible Component runtime for ${artifact.profile ?? "legacy P2 or unknown profile"}. Rebuild as P3.`);
 }
 
-async function runComponent(unit: ComponentUnit, input: string, grants: ReadonlySet<string>, signal?: AbortSignal): Promise<RunResult> {
-  if (!unit.artifact) throw new Error("Build the current P3 source before running.");
-  selectComponentRuntime(unit.artifact);
-  if (!hasCurrentArtifact(unit)) throw new Error("Build the current P3 source before running.");
+async function runComponent(asset: ComponentAsset, input: string, grants: ReadonlySet<string>, signal?: AbortSignal): Promise<RunResult> {
+  if (!asset.artifact) throw new Error("Build the current P3 source before running.");
+  selectComponentRuntime(asset.artifact);
+  if (!hasCurrentArtifact(asset)) throw new Error("Build the current P3 source before running.");
   for (const required of REQUIRED_GRANTS) if (!grants.has(required)) throw new Error(`Import denied: ${required}`);
   if (signal?.aborted) throw new Error("Component run cancelled.");
-  const { sha256: hash, bytes: expectedBytes } = unit.artifact;
+  const { sha256: hash, bytes: expectedBytes } = asset.artifact;
   const response = await fetch(`/api/artifacts/${hash}.wasm`, { cache: "no-store", signal });
   if (!response.ok) throw new Error("Built artifact unavailable. Rebuild this Component.");
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -50,7 +50,7 @@ async function runComponent(unit: ComponentUnit, input: string, grants: Readonly
       finish(() => reply.ok ? resolve(reply) : reject(new Error(reply.error)));
     };
     worker.onerror = () => finish(() => reject(new Error("Component worker failed to load or execute.")));
-    const request: ComponentWorkerRequest = { bytes: bytes.buffer as ArrayBuffer, input, artifact: unit.artifact!, grants: [...grants], postedAt: performance.timeOrigin + performance.now() };
+    const request: ComponentWorkerRequest = { bytes: bytes.buffer as ArrayBuffer, input, artifact: asset.artifact!, grants: [...grants], postedAt: performance.timeOrigin + performance.now() };
     worker.postMessage(request, [request.bytes]);
     if (signal?.aborted) onAbort();
   });

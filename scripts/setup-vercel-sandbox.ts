@@ -13,7 +13,7 @@ const sandbox = await Sandbox.create({
   timeout: 40 * 60_000,
   persistent: false,
   networkPolicy: "allow-all",
-  tags: { purpose: "unit-workspace-toolchain" },
+  tags: { purpose: "station-toolchain" },
 });
 
 async function run(command: string) {

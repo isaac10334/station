@@ -1,5 +1,5 @@
 /** Widget catalog identities and view preferences shared by the dock core and app. */
-export const WIDGET_IDS = ["weather", "clock", "capabilities", "stack", "snake", "docking-inspector"] as const;
+export const WIDGET_IDS = ["weather", "clock", "capabilities", "stack", "snake", "docking-inspector", "ai-chat"] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 export type WidgetSize = "compact" | "standard" | "wide";
 export type WidgetTone = "blue" | "violet" | "coral" | "mint" | "slate";
