@@ -20,7 +20,21 @@ each build also has an immutable `canary-<run>-<attempt>` release for downloads
 and diagnosis. Builds read the previous channel archive to generate delta
 patches. Electrobun falls back to a full download if a patch is unavailable.
 Publication uploads payloads before update metadata. GitHub asset replacement
-is not transactional, so a check during publication may fail and retry later.
+is not transactional, so a metadata check during publication may fail and retry
+later. Full updater archives are also retained under hash-specific filenames;
+metadata references those immutable bytes so an in-flight download remains valid
+when a newer canary publishes. The release gate checks identity, version, archive
+and installer headers before any assets are published.
+
+Windows CI verifies the installed frontend, worker and translator, then waits
+for the real updater to prepare the previously published canary. This proves
+checking and downloading in the managed install; restart/application still
+requires a manual installed-app check. Native menu labels distinguish checking,
+downloading, ready and restarting, and restart failures show a recoverable dialog.
+
+The marketing site deploys independently through GitHub Pages on site changes
+and successful canary publication. Its download starts with the fixed canary URL
+and resolves the channel's immutable installer when GitHub's API is available.
 
 ## Local development
 
@@ -30,7 +44,7 @@ bun run desktop:prepare
 bun run desktop:dev
 ```
 
-`desktop:build` produces the installable canary in `artifacts/`. The app version
+`desktop:build` produces the installable canary in `apps/station/artifacts/`. The app version
 defaults to `0.1.0-canary.0`; Actions supplies a unique `STATION_VERSION`.
 The web development path remains `bun run dev` on port 3000.
 

@@ -1,28 +1,51 @@
 # Architectural decisions
 
 | Choice | Reason and known alternative | Reconsider when |
+
 | --- | --- | --- |
+
 | User-owned Gateway keys and per-widget AI tool grants | Direct browser AI SDK requests support the local prototype. Credentials default to memory; plaintext persistence is opt-in. Session-only widget grants gate advertised tools and checked provider acquisition. Draft saves require source review and never execute content. Existing WIT authority stays separate. | A deployed multi-user product needs authenticated server mediation, a credential vault, budgets, or untrusted extension isolation. |
+
 | Call stored authored content assets | Asset browser, source model, commands and docs use asset terminology. Legacy workspace fields and dock references migrate on load; authored content and WIT/grant/artifact identities remain intact. | A specific asset type needs a more precise name; the umbrella term remains asset. |
+
 | One localhost Bun server and a standalone HTML app build | Keeps local development and distribution simple. The old single-file source was replaced with TypeScript modules, while output stays one HTML file. | A real backend service, multi-user access, or additional routes need durable storage or deployment. |
+
 | React UI with a local headless dock document | shadcn and selected registry components require React. Pure validated commands keep placement policy and persistence separate from views; the store still separates runtime behavior from rendering. | A genuinely portable host contract needs a second consumer. |
+
 | Tailwind v4, shadcn source, Stealth tokens, and a neutral theme | The new dashboard and interaction components now share a concrete design system. Registry code is owned locally; Fonttrio assets are bundled for the standalone build. | Component maintenance or bundle size becomes costly, or a second theme needs distinct semantic tokens. |
+
 | One searchable catalog for the command palette and saved navigation | Scope prefixes narrow assets, panels, and actions in the existing palette. Navigation saves a live content query with pins and exclusions, separately from dock placement/history. A pin picker provides a keyboard alternative to dropping assets. | Source-content indexing, new asset types, or multiple independent navigation widget instances require richer search/provider contracts. |
+
 | Persist a versioned local grid/split/stack layout per workspace | Stable panel instance IDs, pure commands, and migration preserve existing workspaces while allowing duplicate widget types, tabs, nested splits, and the same browser in either dock. dnd-kit coordinates gestures while Stealth source provides rendering parts. Loop Kit stays focused on generic host and capability lifecycle. | A second application needs the same layout contract or a plugin UI capability has a verified end-to-end use case. |
+
 | Keep instance configuration separate from backing geometry | v4 retains color and child presentation per stable instance, including legacy size fields for compatibility. Slots and normalized split ratios own geometry; flip, selection and previews remain transient. Host row extents give a predictable scrolling bento surface without a second coordinate store. | Independently resizable row extents require an explicit node contract and migration. |
+
 | Real Layout ownership in the existing dock graph | `containers[instanceId]` references ordinary nodes. One validator, command boundary, drag coordinator and history serve all placements; cycles and duplicate placements are rejected. Removing a Layout promotes its children recoverably. | A second host proves this is a reusable Loop Kit contract. |
+
 | Persistent instance DOM with measured slot anchors | Chromium here lacks state-preserving DOM moves. A keyed host layer changes bounds and clipping instead of reparenting live iframes/editors/services. Inactive instances stay mounted and inert; source edits, deletion and workspace changes retain their existing lifecycle semantics. | State-preserving browser moves are supported across target browsers, or measured-layer accessibility/scrolling warrants another implementation. |
+
 | Deliberate heading pickup and one cross-placement drag coordinator | dnd-kit supports pointer delay/tolerance and keyboard targets across nested containers and docks. Motion provides readable position reflow; Stealth's independent grid/drop engines are references only. Accepted drops commit one atomic operation; previews never change persistent geometry. | A demonstrated gesture or collision requirement cannot be represented in this coordinator. |
+
 | Station branding without contract renames | Package, title and current product prose use Station. Storage keys, serialized IDs, capability/WIT namespaces and artifact identities retain compatibility. The checkout name remains while processes and Codex attachments reference it. | A deliberate compatibility migration is required, or the checkout can be safely closed and reopened. |
+
 | Host-owned surface policy and session layout recovery | Typed policy caps leaves and validates every placement. Sidebar navigation is a singleton panel; eligible built-in widgets may float with their IDs. The store keeps bounded per-workspace history in memory and clears it on deletion. Surface visibility is session-only. | More surfaces or external widget providers require a proven placement metadata contract. |
+
 | Discriminated Component and web content asset kinds | Components retain source, grants, and built artifact identity. Web content stores authored HTML and runs it as an opaque-origin sandboxed iframe, including dashboard widget instances. The two kinds have different execution and permission contracts. | A third asset kind proves its own source and execution path. |
+
 | Keep authored web widgets local and isolated | `allow-scripts` without `allow-same-origin` blocks host DOM and storage access. A restrictive CSP in the authored document limits resource requests; backend Origin and Fetch Metadata checks reject opaque-origin API access. This does not yet establish a marketplace network or resource boundary. | Separate-origin serving, authenticated APIs, navigation controls, quotas, and review make third-party installation viable. |
+
 | WIT imports are explicit, per-Component grants | Host logging and a bounded text surface show how a Component can act as a plugin without arbitrary DOM access. | A richer surface is needed and its resource, permission, and lifecycle rules are designed. |
+
 | Acquire a profile-specific runtime with Loop Kit | `unit:workspace/component-runtime-polyengine` is selected deterministically from inspected P3 metadata. The linked host manages acquisition/revocation; Station enforces WIT grants. A failed run never retries another provider. | A second runtime passes the same artifact and browser contract. |
+
 | Inspect application lifecycle independently of asset grants | Loop Kit reflects documented contract definitions, named scope ownership, provider registrations and pending/active/releasing acquisitions as immutable data. Definitions are grouped by namespace and contract package from existing IDs and can exist without providers. Station retains all workspace scopes and binds catalog access privately; the inspector lists each Component's grants explicitly in a separate tab. New built-in JS providers do not expand guest authority. | A verified guest bridge or another host requires a richer permission/reflection contract. |
+
 | Ship source-only sample and build P3 dynamically | Static generated bindings would execute artifact-specific JavaScript. The source-only sample makes the current source → Sandbox → verified bytes path explicit. The build uses pinned nightly Rust, `wit-bindgen` 0.60.0, locked WIT dependencies, and an offline snapshot; both P3 and incidental P2 imports are recorded. | A stable Rust toolchain can emit the same P3 contract or another build provider proves equivalent provenance. |
+
 | Translate verified bytes inside a fixed Polyengine worker | Polyengine 0.6.7 passed the local P3 future/stream fixture and browser invocation. The translator asset is pinned by SHA-256. A worker and import membrane bound locally authored guest authority; termination is the hard cancellation path. This is not sufficient for a hostile marketplace guest. | A second runtime proves the same contract or a separate-origin runner is added for untrusted installs. |
+
 | Defer `@loop-kit/component` | A small runtime-neutral artifact identity, compatibility, selection, and scoped-invocation contract is plausible. A second production runtime boundary has not yet been proven; WIT grants, browser transport, Vercel build, and concrete adapters stay in Station. | Another consumer or runtime demonstrates the shared contract without app-specific fields. |
+
 | Remove the incomplete Wanix browser lab | The Alpine i686 guest lacked Rust and Cargo, package installation stalled, and no Component build succeeded. Vercel Sandbox is the implemented build path. | A browser-local provider proves source-to-Component bytes and repeatable builds in the guest. |
 
 Update this file only when a durable choice changes, with its reason and a practical condition for revisiting it.
@@ -30,10 +53,48 @@ Update this file only when a durable choice changes, with its reason and a pract
 Component grants use approval on invocation and a shared permission ledger. One-run authority is private to its invocation and expires on completion; remembered decisions retain existing asset-scoped boolean grant storage. Revocation cancels active authority, including a one-run approval with no saved grant. The approval snapshot must match the current revision and artifact. Revisit revision-wide remembered approval if assets gain third-party updates or a broader import profile.
 
 Desktop distribution uses Electrobun 2.0.2 with bundled Bun and native Windows
+
 WebView2. A fixed desktop loopback origin preserves browser workspace storage;
+
 artifacts and backend credentials live in user data outside the installed bundle.
+
 Every main push publishes an unsigned canary to a fixed GitHub Release URL,
+
 retaining delta patches and an immutable build release. Downloads are automatic;
+
 applying requires an explicit restart. Revisit signing, authenticated release
+
 hosting, additional platforms and credential UX when distributing beyond the
+
 local prototype.
+
+## 2026-10-11: local extensions and desks
+
+- Keep one dock document per desk and one dnd-kit coordinator. Editor/contribution ownership extends the existing container graph; there is no second layout store.
+- Use CodeMirror and small worker services for local TypeScript authoring. Curated dependencies and esbuild-wasm keep execution independent of a remote IDE runtime.
+- Install immutable, reviewed package snapshots from authored assets. Source edits do not silently update running packages; Component plugins remain on-demand commands.
+- Use opaque frames and a narrow private-port membrane. Loop Kit lifecycle is not itself a guest permission boundary. Shared owner state is scoped and declared.
+- Desks share assets but copy configurations and restart runtimes on switching. Theme assets contain validated data; selection and token propagation happen live.
+
+Revisit arbitrary npm packages, remote distribution, WASM UI and background services when their distribution, security and lifecycle contracts have a verified consumer.
+
+## 2026-10-13: application workspace and public contracts
+
+- Keep a private root coordinator and one `apps/station` application, with independently packable SDK and capability-contract packages. Do not create placeholder packages for every internal layer.
+- Keep core state/reducers headless; isolate private contracts, trusted providers, services, React UI and composition within the app. Guest builds resolve the public SDK and declarations through package exports.
+- Keep existing artifacts, storage/WIT identities, fonts, workers and desktop resources intact when relocating source. Development runs with the repository watch root and root environment files.
+- Use the existing themed tree for built-in Files. Explore host-rendered semantic UI as an owner-bound, validated capability; drawing and GPU execution need distinct contracts. [The UI capability proposal](ui-capabilities.md) describes the next slice, not implemented authority.
+
+## 2026-10-14: forkability, shared UI and bounded collaboration
+
+- Fork installed source snapshots into new package identities; keep install/update and authority review explicit. Preserve source-only export semantics and traverse theme icon dependencies.
+- Share semantic icon names as contracts and trusted/guest React renderers in a private UI workspace. Guest rendering remains separate from host UI capabilities. Static SVG icons are a validated image subset; richer animation is deferred.
+- Prototype collaboration with same-origin, invitation-bound WebSockets, independent local desks, exact source revisions and conflict copies. Do not claim CRDT editing, E2E encryption, cloud accounts, native execution grants or agent control. Network exposure disables Component APIs.
+- Keep marketing as a static app with a fixed-canary download and optional Pages deployment, separate from the workspace runtime. Export/publish from Station is a later capability.
+
+## 2026-10-14: explicit chat knowledge and shared presentation
+
+- Default new chat settings to the checked Gateway GPT-6 Luna ID while preserving saved choices. Static product knowledge is separate from live, grant-bound workspace context; model features do not grant tool authority.
+- Chat owns a bounded message scroller; no outer generic widget scroll wrapper. Theme inputs keep local intermediate strings and commit valid settled values.
+- Combine sole-instance/slot removal through one reducer command and undo entry, preserving existing child promotion and authored assets.
+- Share default token/font CSS and theme reveal through private UI package; use canonical monochrome SVGL brand geometry and one deterministic S asset family. Retain Bun and keep tray/browser/command-plane work in explicit acceptance-driven prompts.

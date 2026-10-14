@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "electrobun": [
+        "./.hutch/devkit/api/sdks/main/index.ts"
+      ],
+      "electrobun/main": [
+        "./.hutch/devkit/api/sdks/main/index.ts"
+      ]
+    },
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "bun"
+    ],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "server",
+    "electrobun.config.ts",
+    "desktop",
+    "src",
+    "scripts"
+  ]
+}

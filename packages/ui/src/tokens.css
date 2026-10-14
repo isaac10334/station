@@ -1,0 +1,51 @@
+/* Shared Station default colors. Authored themes override the same semantic variables. */
+:root,
+[data-theme="dark"] {
+  --page: #080808;
+  --frame: #0d0d0d;
+  --raised: #141414;
+  --hover: #161616;
+  --line: #1c1c1c;
+  --line-2: #262626;
+  --fg: #ededed;
+  --fg-2: #9b9b9b;
+  --fg-3: #6b6b6b;
+  --fg-4: #454545;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 40px -12px rgba(0, 0, 0, 0.9);
+  --overlay: rgba(0, 0, 0, 0.6);
+  --danger: #e5646a;
+  --danger-soft: rgba(229, 100, 106, 0.12);
+  --success: #5fc992;
+  --success-soft: rgba(95, 201, 146, 0.12);
+  --warning: #e0a85a;
+  --warning-soft: rgba(224, 168, 90, 0.12);
+  --info: #7aa7e8;
+  --info-soft: rgba(122, 167, 232, 0.12);
+  --pop: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 0 0 1px rgba(0, 0, 0, 0.4), 0 16px 48px -16px rgba(0, 0, 0, 0.95);
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --page: #f2f2f0;
+  --frame: #fbfbfa;
+  --raised: #ffffff;
+  --hover: #f1f1ef;
+  --line: #ebebe8;
+  --line-2: #dcdcd8;
+  --fg: #151515;
+  --fg-2: #5f5f5c;
+  --fg-3: #8d8d89;
+  --fg-4: #b8b8b3;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 12px 32px -14px rgba(0, 0, 0, 0.18);
+  --overlay: rgba(20, 20, 18, 0.28);
+  --danger: #d23f45;
+  --danger-soft: rgba(210, 63, 69, 0.09);
+  --success: #1f9a5c;
+  --success-soft: rgba(31, 154, 92, 0.09);
+  --warning: #b87514;
+  --warning-soft: rgba(184, 117, 20, 0.1);
+  --info: #2f6fce;
+  --info-soft: rgba(47, 111, 206, 0.09);
+  --pop: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 0 0 1px rgba(0, 0, 0, 0.04), 0 16px 40px -14px rgba(0, 0, 0, 0.22);
+  color-scheme: light;
+}
+

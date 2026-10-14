@@ -19,3 +19,6 @@ build/
 artifacts/
 .env
 .cottontail-tmp/
+
+apps/station/src/generated/web-tools.ts
+packages/sdk/dist/

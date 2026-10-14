@@ -1,6 +1,6 @@
 # Workspace surfaces
 
-**Status: exploratory.** This note records design questions, not an implemented contract or a commitment to a particular renderer. For the current layout, placement, and drag behavior, read [the docking contract](../../src/docking/README.md).
+**Status: exploratory.** This note records design questions, not an implemented contract or a commitment to a particular renderer. For the current layout, placement, and drag behavior, read [the docking contract](../../apps/station/src/ui/docking/README.md).
 
 ## Direction
 

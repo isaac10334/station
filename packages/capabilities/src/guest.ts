@@ -1,0 +1,39 @@
+/** Serializable guest contracts. Types describe values; hosts still validate authority and payloads. */
+export type Json =
+  null | boolean | number | string | Json[] | { [key: string]: Json };
+export interface Theme {
+  mode: "dark" | "light";
+  variables: Record<string, string>;
+  /** Validated static SVG image URLs keyed by the semantic icon catalog. */
+  icons?: Record<string, string>;
+}
+export interface EditorSession {
+  files(): Promise<Record<string, string>>;
+  edit(path: string, source: string): Promise<void>;
+  select(path: string): Promise<void>;
+  remove(path: string): Promise<void>;
+  rename(from: string, to: string): Promise<void>;
+  diagnostics(): Promise<Json[]>;
+}
+export interface CapabilityHandle<T> {
+  value: T;
+  subscribe(listener: (value: Json) => void): Promise<() => void>;
+  release(): Promise<void>;
+}
+export interface Station {
+  acquire<T extends object>(capability: {
+    id: string;
+    version: string;
+  }): Promise<CapabilityHandle<T>>;
+  theme: { subscribe(listener: (theme: Theme) => void): () => void };
+  state(key: string): {
+    get(): Promise<Json>;
+    set(value: Json): Promise<void>;
+    subscribe(listener: (value: Json) => void): () => void;
+  };
+  slots: {
+    open(slot: string, definition: string): Promise<string>;
+    close(instance: string): Promise<void>;
+  };
+  disconnect(): void;
+}

@@ -1,0 +1,7 @@
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono";
+:root {
+  --font-body: "IBM Plex Sans Variable", system-ui, sans-serif;
+  --font-heading: var(--font-body);
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}

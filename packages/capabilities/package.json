@@ -1,0 +1,40 @@
+{
+  "name": "@station/capabilities",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Station capability identities and serializable guest contracts",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./guest": {
+      "types": "./dist/guest.d.ts",
+      "import": "./dist/guest.js"
+    },
+    "./icons": {
+      "types": "./dist/icon-names.d.ts",
+      "import": "./dist/icon-names.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "bun run build"
+  },
+  "dependencies": {
+    "@loop-kit/capabilities": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

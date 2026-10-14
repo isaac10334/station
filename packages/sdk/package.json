@@ -1,0 +1,32 @@
+{
+  "name": "@station/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Typed, scoped Station guest API",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "bun run build"
+  },
+  "dependencies": {
+    "@station/capabilities": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

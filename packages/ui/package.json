@@ -1,0 +1,44 @@
+{
+  "name": "@station/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "import": "./dist/icons.js"
+    },
+    "./theme-icons": {
+      "types": "./dist/theme-icons.d.ts",
+      "import": "./dist/theme-icons.js"
+    },
+    "./theme-toggle": {
+      "types": "./dist/theme-toggle.d.ts",
+      "import": "./dist/theme-toggle.js"
+    },
+    "./tokens.css": "./src/tokens.css",
+    "./fonts.css": "./src/fonts.css"
+  },
+  "peerDependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "typescript": "5.9.3",
+    "@types/react-dom": "19.3.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@station/capabilities": "workspace:*",
+    "@fontsource-variable/ibm-plex-sans": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "format": "station-package",
+  "version": 1,
+  "assets": [
+    {
+      "kind": "web-content",
+      "id": "svg-studio-source",
+      "name": "SVG studio source",
+      "description": "Forkable SDK-backed SVG preview/editor composition",
+      "revision": 0,
+      "files": {
+        "index.html": "<div id=\"app\"></div><script type=\"module\" src=\"./src/main.tsx\"></script>",
+        "src/main.tsx": "import React, {useEffect,useState} from \"react\";\nimport {createRoot} from \"react-dom/client\";\nimport {connect,type EditorSession} from \"@station/sdk\";\nimport {Button,Surface,Stack,setIconOverrides} from \"@station/ui\";\nconst station=await connect();\nstation.theme.subscribe(theme=>setIconOverrides(theme.icons??{}));\nconst handle=await station.acquire<EditorSession>({id:\"station:editor/session\",version:\"1.0.0\"});\nfunction Studio(){\n const [files,setFiles]=useState<Record<string,string>>({}),[path,setPath]=useState(\"\"),[error,setError]=useState(\"\");\n const load=async()=>{const next=await handle.value.files();setFiles(next);setPath(previous=>next[previous]!==undefined?previous:Object.keys(next).find(path=>path.endsWith(\".svg\"))??\"\")};\n useEffect(()=>{let disposed=false,stop:(()=>void)|undefined;void load();void handle.subscribe(()=>{if(!disposed)void load()}).then(unsubscribe=>{if(disposed)unsubscribe();else stop=unsubscribe});return()=>{disposed=true;stop?.()}},[]);\n useEffect(()=>{if(path)void handle.value.select(path)},[path]);\n const source=files[path]??\"\",url=source?\"data:image/svg+xml,\"+encodeURIComponent(source):\"\";\n const create=async()=>{if(files[\"icon.svg\"]!==undefined)return;await handle.value.edit(\"icon.svg\",'<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"8\" fill=\"#829b64\"/></svg>');await handle.value.select(\"icon.svg\");setPath(\"icon.svg\");await load()};\n const recolor=async(value:string)=>{try{const doc=new DOMParser().parseFromString(source,\"image/svg+xml\");if(doc.querySelector(\"parsererror\")||doc.documentElement.localName!==\"svg\")throw Error(\"Fix the SVG source first\");doc.documentElement.setAttribute(\"stroke\",value);await handle.value.edit(path,new XMLSerializer().serializeToString(doc.documentElement))}catch(error){setError(String(error))}};\n return <Surface style={{height:\"100%\",boxSizing:\"border-box\",padding:16}}><Stack gap={16}><Stack direction=\"row\" style={{alignItems:\"center\",flexWrap:\"wrap\"}}><strong>SVG studio</strong><select aria-label=\"SVG file\" value={path} onChange={event=>{setPath(event.target.value);void handle.value.select(event.target.value)}}>{Object.keys(files).filter(path=>path.endsWith(\".svg\")).map(path=><option key={path}>{path}</option>)}</select><Button onClick={()=>void create()} disabled={files[\"icon.svg\"]!==undefined}>New SVG</Button></Stack>{source?<><div style={{minHeight:160,display:\"grid\",placeItems:\"center\",background:\"#f4f4f0\",borderRadius:12}}><img alt=\"SVG preview\" src={url} style={{width:\"min(240px,80%)\",height:240}}/></div><label>Stroke <input aria-label=\"SVG stroke\" type=\"color\" onChange={event=>void recolor(event.target.value)}/></label></>:<p>Select or create an SVG file.</p>}<p style={{fontSize:12,opacity:.65}}>Edit shapes in the shared Code pane. Preview updates from this asset's editor session. SVG is displayed as an image, not inserted into the host DOM.</p>{error&&<p role=\"alert\">{error}</p>}</Stack></Surface>;\n}\ncreateRoot(document.getElementById(\"app\")!).render(<Studio/>);\n"
+      }
+    },
+    {
+      "kind": "web-content",
+      "id": "station-icon-source",
+      "name": "Station icon source",
+      "description": "SVG file for theme overrides",
+      "revision": 0,
+      "files": {
+        "index.html": "<p>Edit icon.svg in SVG studio.</p>",
+        "icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 4h16v5H9v2h11v9H4v-5h11v-2H4z\"/></svg>"
+      }
+    },
+    {
+      "kind": "theme",
+      "id": "svg-studio-theme",
+      "name": "Studio theme",
+      "description": "A warm, light theme with an asset-backed icon",
+      "revision": 0,
+      "files": {
+        "theme.json": "{\n  \"version\": 1,\n  \"mode\": \"light\",\n  \"colors\": {\n    \"frame\": \"#f8f8f0\",\n    \"raised\": \"#ffffff\",\n    \"fg\": \"#303b29\",\n    \"muted\": \"#77816c\",\n    \"line\": \"#d6dccb\",\n    \"selected\": \"#e5ebdb\",\n    \"focus\": \"#748a5c\",\n    \"danger\": \"#b84d42\"\n  },\n  \"font\": \"IBM Plex Sans\",\n  \"density\": \"compact\",\n  \"spacing\": 8,\n  \"radius\": 8,\n  \"icons\": {\n    \"Share\": {\n      \"assetId\": \"station-icon-source\",\n      \"path\": \"icon.svg\"\n    }\n  }\n}"
+      }
+    },
+    {
+      "kind": "package",
+      "id": "svg-studio-package",
+      "name": "SVG studio",
+      "description": "Shared Files and Code panes with an SDK-backed SVG preview",
+      "revision": 0,
+      "files": {
+        "station.json": "{\n  \"version\": 1,\n  \"id\": \"svg-studio\",\n  \"name\": \"SVG studio\",\n  \"contributions\": [\n    {\n      \"id\": \"editor\",\n      \"role\": \"editor\",\n      \"title\": \"SVG studio\",\n      \"assetId\": \"svg-studio-source\",\n      \"creation\": \"contextual\",\n      \"assetKinds\": [\n        \"web-content\"\n      ],\n      \"capabilities\": [\n        \"station:editor/session\"\n      ],\n      \"slots\": [\n        {\n          \"id\": \"files\",\n          \"definitions\": [\n            \"station:editor/files\"\n          ],\n          \"initial\": [\n            \"station:editor/files\"\n          ]\n        },\n        {\n          \"id\": \"code\",\n          \"definitions\": [\n            \"station:editor/code\"\n          ],\n          \"initial\": [\n            \"station:editor/code\"\n          ]\n        }\n      ],\n      \"layout\": {\n        \"axis\": \"horizontal\",\n        \"ratio\": 0.2,\n        \"first\": {\n          \"slot\": \"files\"\n        },\n        \"second\": {\n          \"axis\": \"horizontal\",\n          \"ratio\": 0.6,\n          \"first\": {\n            \"slot\": \"code\"\n          },\n          \"second\": {\n            \"slot\": \"body\"\n          }\n        }\n      }\n    }\n  ],\n  \"themeAssets\": [\n    \"svg-studio-theme\"\n  ]\n}"
+      }
+    }
+  ]
+}
