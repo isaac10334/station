@@ -1,4 +1,4 @@
-import type { Workspace } from "./model";
+import type { Workspace } from "./workspace-state";
 /** Pure catalog lookup, shared by navigation, rendering and authorization. No runtime startup. */
 export function installedDefinitions(workspace: Workspace) {
   const desk = workspace.desks.find(

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createStore } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
 import { editorPaneTarget } from "../src/core/editor-panes";
 test("closed editor panes recover into their owner without replacing other mounted pane identities", () => {
   const store = createStore({ getItem: () => null, setItem: () => {} });

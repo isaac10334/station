@@ -10,12 +10,14 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { scoreCommand } from "../../lib/command-search";
+import { scoreCommand } from "../../../features/navigation/domain/command-search";
 import {
   parseWorkspaceQuery,
   type WorkspaceSearchItem,
 } from "../../workspace-search";
 import type { NavigationFilter } from "../../../core/navigation-filter";
+
+const assetTypeLabels = {component:"Components", "web-content":"Web content", theme:"Themes", package:"Packages", "widget-definition":"Widget definitions", "desk-template":"Desk templates", svg:"SVG icons", decision:"Decision policies", "data-source":"Data sources", custom:"Custom documents",script:"Scripts",markdown:"Markdown",note:"Rich notes"} as const;
 
 /** Edits live filter preferences and provides a keyboard alternative to drag-to-pin. */
 export function NavigationFilterEditor({
@@ -110,25 +112,10 @@ export function NavigationFilterEditor({
           aria-label="Asset type filter"
           className="self-start"
         >
-          {filter.assetKinds.length === 1
-            ? filter.assetKinds[0] === "component"
-              ? "Components"
-              : filter.assetKinds[0] === "web-content"
-                ? "Web content"
-                : filter.assetKinds[0] === "theme"
-                  ? "Themes"
-                  : "Packages"
-            : "All asset types"}
+          {filter.assetKinds.length === 1 ? assetTypeLabels[filter.assetKinds[0]] : "All asset types"}
         </DropdownMenuTrigger>
         <DropdownMenuContent container={menuContainer}>
-          {(
-            [
-              ["component", "Components"],
-              ["web-content", "Web content"],
-              ["theme", "Themes"],
-              ["package", "Packages"],
-            ] as const
-          ).map(([kind, label]) => (
+          {(Object.entries(assetTypeLabels) as [keyof typeof assetTypeLabels, string][]).map(([kind, label]) => (
             <DropdownMenuCheckboxItem
               key={kind}
               checked={filter.assetKinds.includes(kind)}

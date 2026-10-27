@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { createStore } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
 import { migrateDock } from "../src/core/docking";
-import { scoreCommand } from "../src/ui/lib/command-search";
+import { scoreCommand } from "../src/features/navigation/domain/command-search";
 import { navigationItems, normalizeNavigation } from "../src/core/navigation-filter";
 import {
   parseWorkspaceQuery,

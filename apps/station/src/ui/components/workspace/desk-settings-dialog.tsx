@@ -1,5 +1,13 @@
+import { useDockController } from "../../docking/react";
+import type { ReactNode } from "react";
+import { ShellBackgroundControl } from "./shell-background-control";
+import { ShellDefinitionField } from "./shell-definition-field";
+import { ServicesManager } from "./services-manager";
+import { ExtensionSettings } from "./extension-settings";
+import { availableDeskTemplates, parseDeskTemplate } from "../../../core/desk-templates";
+import { WidgetPreview } from "./widget-preview";
 import { useEffect, useState } from "react";
-import type { Workspace } from "../../../core/model";
+import type { Workspace } from "../../../core/workspace-state";
 import { deps } from "../../../composition";
 import { parseTheme } from "../../../core/theme-assets";
 import { assetFiles } from "../../../core/source-project";
@@ -24,8 +32,12 @@ import {
 } from "./settings-section";
 import { DeskWidgetSettings } from "./desk-widget-settings";
 import { WorkspacePackageSettings } from "./workspace-package-settings";
+import { DesktopUpdateSettings } from "./desktop-update-settings";
+import { AgentAccessSettings } from "./agent-access-settings";
+import { ShortcutSettings } from "./shortcut-settings";
+import { useShortcutInvocation } from "./shortcut-host";
 
-type SettingsTab = "desk" | "appearance" | "widgets" | "packages";
+type SettingsTab = "desk" | "appearance" | "widgets" | "packages" | "app" | "access" | "shortcuts" | "services" | "extensions";
 
 /** Configuration tabs share a fixed shell; each tab has one bounded scroll region. */
 export function DeskSettingsDialog({
@@ -34,13 +46,20 @@ export function DeskSettingsDialog({
   onCreate,
   onOpenAsset,
   onSearch,
+  docked = false,
 }: {
+  docked?: boolean;
   workspace: Workspace;
   onClose: () => void;
   onCreate: (kind: "theme" | "package") => void;
   onOpenAsset: (id: string) => void;
   onSearch: () => void;
 }) {
+  const { layout, command } = useDockController();
+  const previewShortcut = useShortcutInvocation(workspace);
+  const Content = docked ? DockedSettingsShell : DialogContent;
+  const Title = docked ? "h2" : DialogTitle;
+  const Description = docked ? "p" : DialogDescription;
   const desk = deps.store.desk();
   const [tab, setTab] = useState<SettingsTab>("desk"),
     [name, setName] = useState(desk.name),
@@ -48,7 +67,10 @@ export function DeskSettingsDialog({
     [error, setError] = useState(""),
     [confirmation, setConfirmation] = useState<"reset" | "delete" | null>(null),
     [newDesk, setNewDesk] = useState(false),
-    [newName, setNewName] = useState("");
+    [newName, setNewName] = useState(""),
+    [templateId, setTemplateId] = useState(workspace.defaultTemplateId ?? "builtin:desk-app");
+  const templates = availableDeskTemplates(workspace.assets);
+  const root = workspace.dock.rootId ? workspace.dock.panels[workspace.dock.rootId] : undefined;
   useEffect(() => {
     setName(desk.name);
   }, [desk.id, desk.name]);
@@ -69,12 +91,16 @@ export function DeskSettingsDialog({
     setError("");
   };
   return (
-    <DialogContent size="lg" className="station-settings-dialog">
+    <Content size="lg" className={docked ? "flex h-full min-h-0 flex-1 flex-col" : "station-settings-dialog"}>
       <DialogHeader className="pb-4">
-        <DialogTitle>Desk settings</DialogTitle>
-        <DialogDescription>
+        <div className="flex items-center justify-between gap-2">{!docked && <Title>Desk settings</Title>}{!docked && <Button size="sm" variant="ghost" onClick={() => {
+          const existing = Object.values(layout.panels).find(p => p.kind === "widget" && p.widget === "desk-settings");
+          const result = command(existing ? { type: "activate", panelId: existing.id } : { type: "createWidget", widget: "desk-settings", target: { surface: "main", intent: "tab" } });
+          if (result.ok) onClose(); else setError(result.reason);
+        }}>Dock settings</Button>}</div>
+        <Description className="text-xs text-fg-3">
           {desk.name} · {workspace.name}
-        </DialogDescription>
+        </Description>
       </DialogHeader>
       <Tabs
         value={tab}
@@ -94,8 +120,24 @@ export function DeskSettingsDialog({
           <TabsTab value="appearance">Appearance</TabsTab>
           <TabsTab value="widgets">Widgets</TabsTab>
           <TabsTab value="packages">Packages</TabsTab>
+          <TabsTab value="services">Services</TabsTab>
+          <TabsTab value="extensions">Extensions</TabsTab>
+          <TabsTab value="app">App</TabsTab>
+          <TabsTab value="shortcuts">Shortcuts</TabsTab>
+          <TabsTab value="access">Agents</TabsTab>
         </TabsList>
         <DialogBody className="py-6">
+          <TabsPanel value="shortcuts"><ShortcutSettings workspace={workspace} onChange={settings => deps.store.configureShortcuts(settings)} onPreview={entry => { try { previewShortcut(entry); } catch (reason) { setError(String(reason)); } }} onCreateInbox={files => {
+            const id = deps.commands.execute("asset.create", { kind: 'data-source', name: 'Inbox', files }).result.id;
+            command({ type: 'createWidget', widget: 'data-view', defaults: { displayName: 'Inbox', dataView: { sourceId: id, presentation: 'table', search: '', descending: true, sortBy: 'created', hiddenColumns: ['created'] } }, target: { surface: 'sidebar', intent: 'tab' } });
+            return id;
+          }} /></TabsPanel>
+          <TabsPanel value="services"><ServicesManager/></TabsPanel>
+          <TabsPanel value="extensions"><ExtensionSettings/></TabsPanel>
+          <TabsPanel value="access" className="motion-reduce:transition-none"><AgentAccessSettings /></TabsPanel>
+          <TabsPanel value="app" keepMounted className="motion-reduce:transition-none">
+            <DesktopUpdateSettings />
+          </TabsPanel>
           <TabsPanel
             value="desk"
             keepMounted
@@ -178,6 +220,12 @@ export function DeskSettingsDialog({
                     Duplicate desk
                   </Button>
                 </div>
+              </SettingsSection>
+              <SettingsSection title="App shell" description="The shell is the root layout widget for this desk.">
+                <div className="space-y-1 text-xs"><span>Root widget</span><ShellDefinitionField workspace={workspace} label="Root widget" definitionId={root?.kind === "widget" ? root.definitionId ?? `builtin:${root.widget}` : "builtin:app-shell"} onOpen={onOpenAsset} onChange={selection => { const result = command(selection); if (!result.ok) { setError(result.reason); throw new Error(result.reason); } }} /></div>
+                {root?.kind === "widget" && <ShellBackgroundControl value={root.background} onChange={background => { deps.store.dispatchDock({type:"configureShell",background}); }} />}
+                <Button size="sm" variant="outline" onClick={() => { const id = deps.store.saveDeskTemplate(`${desk.name} template`); onOpenAsset(id); notify("Template asset created."); }}>Save as template asset</Button>
+                <Button size="sm" variant="ghost" onClick={() => { if (root?.kind === "widget") onOpenAsset(root.definitionId ?? `builtin:${root.widget}`); }}>Edit root definition</Button>
               </SettingsSection>
               <SettingsSection
                 title="Workspace default"
@@ -413,9 +461,7 @@ export function DeskSettingsDialog({
             ? "Name changes aren’t saved yet."
             : notice || "Settings apply immediately."}
         </p>
-        <Button size="sm" onClick={onClose}>
-          Done
-        </Button>
+        {!docked && <Button size="sm" onClick={onClose}>Done</Button>}
       </DialogFooter>
       <SettingsConfirmation
         open={!!confirmation}
@@ -452,15 +498,15 @@ export function DeskSettingsDialog({
             onSubmit={(event) => {
               event.preventDefault();
               if (!newName.trim()) return;
-              deps.store.createDesk(newName.trim());
+              try { deps.store.createDesk(newName.trim(), false, templateId); } catch (reason) { setError(String(reason)); return; }
               setNewDesk(false);
-              notify("New desk created from the workspace default.");
+              notify("New desk created from template.");
             }}
           >
             <DialogHeader className="pb-4">
               <DialogTitle>New desk</DialogTitle>
               <DialogDescription>
-                Start with the workspace default. Assets stay shared.
+                Choose a template. Assets stay shared.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 px-5">
@@ -478,6 +524,9 @@ export function DeskSettingsDialog({
                 placeholder="e.g. Development"
                 autoFocus
               />
+              {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+              <label className="mt-3 text-xs font-medium text-fg-2">Desk template<NativeSelect aria-label="Desk template" value={templateId} onChange={event => setTemplateId(event.target.value)}>{templates.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</NativeSelect></label>
+              {(() => { try { const source = templates.find(asset => asset.id === templateId); const setup = source && parseDeskTemplate(source.files["desk.json"] ?? "").setup; const panel = setup?.dock.rootId && setup.dock.panels[setup.dock.rootId]; return panel && panel.kind === "widget" ? <WidgetPreview seed={{widget:panel.widget, defaults:{background:panel.background}}} small /> : null; } catch { return <p className="text-xs text-danger">This template is invalid. Choose another or edit its source.</p>; } })()}
             </div>
             <DialogFooter>
               <Button
@@ -494,6 +543,8 @@ export function DeskSettingsDialog({
           </form>
         </DialogContent>
       </Dialog>
-    </DialogContent>
+    </Content>
   );
 }
+
+function DockedSettingsShell({ children, className }: { children?: ReactNode; className?: string; size?: string }) { return <section aria-label="Desk settings" className={className}>{children}</section>; }

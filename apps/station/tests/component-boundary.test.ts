@@ -4,8 +4,10 @@ import { inspectComponentPlan } from "../src/providers/component-plan";
 import { createRunTabProviders } from "../src/providers/run-providers";
 import { createPolyengineRunner, selectComponentRuntime } from "../src/providers/component-runtime";
 import { HOST_CLOCK, HOST_FEED, HOST_LOG, REQUIRED_GRANTS } from "../src/core/component-contract";
-import { createStore } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
 import { sha256 } from "../src/core/build-contract";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
 test("legacy P2 profiles receive a named incompatibility without fallback", () => {
   expect(() => selectComponentRuntime({ profile: "component-model-0.2" } as any)).toThrow("No compatible Component runtime for component-model-0.2");
@@ -14,7 +16,8 @@ test("legacy P2 profiles receive a named incompatibility without fallback", () =
 const localComponent = Bun.file(new URL("../../../components/greeting/target/wasm32-wasip2/release/greeting.wasm", import.meta.url));
 const translationTest = await localComponent.exists() ? test : test.skip;
 translationTest("inspection rejects an unprovided import before instantiation", async () => {
-  const shim = new Uint8Array(await Bun.file("node_modules/@polyengine/translator/esm/translator_shim.wasm").arrayBuffer());
+  const require = createRequire(import.meta.url);
+  const shim = new Uint8Array(await Bun.file(join(dirname(require.resolve("@polyengine/translator/package.json")), "esm/translator_shim.wasm")).arrayBuffer());
   const wasm = new Uint8Array(await localComponent.arrayBuffer());
   const plan = (await Translator.create(shim)).translate(wasm).plan;
   expect(inspectComponentPlan(plan).imports).toContain("wasi:clocks/monotonic-clock@0.3.1");

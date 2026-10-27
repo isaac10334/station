@@ -13,7 +13,7 @@ export function NativeSelect({
     <div className="relative min-w-0">
       <select
         className={cn(
-          "w-full min-w-0 appearance-none rounded-md border border-line-2 bg-frame pl-3 pr-8 text-fg outline-none",
+          "w-full min-w-0 appearance-none rounded-[10px] border border-line-2 bg-frame pl-3 pr-8 text-fg outline-none",
           "transition-colors hover:border-fg-4 focus-visible:border-fg-3 focus-visible:ring-1 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
           compact ? "h-8 text-xs" : "h-9 text-base sm:text-sm",
           className,

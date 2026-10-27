@@ -53,6 +53,8 @@ const round = (v: number) => Math.round(v * 100) / 100;
 
 export type PanelGroupProps = Omit<React.ComponentProps<"div">, "dir"> & {
   direction?: Direction;
+  /** Frequent shell toggles can opt out of motion without disabling resize gestures. */
+  instant?: boolean;
   /** Controlled normalized percentages. External undo/redo updates do not emit onLayout. */
   value?: number[];
   /** Called with every panel's size, in percent, whenever a resize settles. Persist it to restore the layout. */
@@ -63,8 +65,8 @@ export type PanelGroupProps = Omit<React.ComponentProps<"div">, "dir"> & {
  * Split panes. Sizes are percentages of the group, so the layout survives a window resize;
  * handles between panels drag, step with arrow keys, and double-click to collapse.
  */
-export function PanelGroup({ direction = "horizontal", value, onLayout, className, children, ...rest }: PanelGroupProps) {
-  const reduce = !!useReducedMotion();
+export function PanelGroup({ direction = "horizontal", instant = false, value, onLayout, className, children, ...rest }: PanelGroupProps) {
+  const reduce = !!useReducedMotion() || instant;
   const uid = useId();
   const kids = Children.toArray(children).filter(isValidElement);
   const panelProps = kids.filter((k) => k.type === Panel).map((k) => k.props as PanelProps);

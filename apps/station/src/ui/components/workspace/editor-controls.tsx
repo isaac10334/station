@@ -1,10 +1,14 @@
+import { compatibleEditors } from "../../../core/asset-routing";
+import { EditorPresentationControls } from "./editor-presentation";
 import { useEffect, useState } from "react";
 import { ForkPackageAction } from "./fork-package-action";
-import type { Asset, Workspace } from "../../../core/model";
+import type { Asset } from "../../../core/asset-state";
+import type { Workspace } from "../../../core/workspace-state";
 import type { Panel } from "../../../core/docking";
 import { editorPaneTarget } from "../../../core/editor-panes";
 import { deps } from "../../../composition";
 import { installedDefinitions } from "../../../core/contribution-catalog";
+import { editorChoices } from "../../../core/asset-routing";
 import { useDockController } from "../../docking/react";
 import { ActionTooltip } from "../ui/action-tooltip";
 import {
@@ -58,20 +62,16 @@ export function EditorControls({
       setPending(null);
     } else if (layout.containers[panel.id]) setPending(null);
   }, [pending, layout, panel.id, asset.id]);
-  const choices = installedDefinitions(workspace).filter(
-    (item) =>
-      item.contribution.role === "editor" &&
-      item.contribution.assetKinds.includes(asset.kind),
-  );
+  const choices = editorChoices(workspace, asset);
   const title =
-    choices.find((item) => item.id === panel.definitionId)?.contribution
-      .title ?? "Station editor";
+    choices.find((item) => item.id === panel.definitionId)?.title ?? choices[0].title;
   const parts =
     asset.kind === "web-content"
       ? (["files", "code", "preview", "problems"] as const)
       : (["files", "code", "problems"] as const);
   return (
     <div className="station-project-toolbar border-b border-line text-xs">
+      <EditorPresentationControls panelId={panel.id} />
       <DropdownMenu>
         <ActionTooltip label="Open with a different editor">
           <DropdownMenuTrigger
@@ -88,11 +88,7 @@ export function EditorControls({
           <DropdownMenuGroup>
             <DropdownMenuLabel>Open with</DropdownMenuLabel>
             {[
-              { id: "", title: "Station editor" },
-              ...choices.map((item) => ({
-                id: item.id,
-                title: item.contribution.title,
-              })),
+              ...choices.map(item => ({ id: item.id === "station" ? "" : item.id, title: item.title })),
             ].map((item) => (
               <DropdownMenuItem
                 key={item.id}
@@ -204,11 +200,11 @@ export function EditorControls({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      {choices.find((item) => item.id === panel.definitionId) && (
+      {compatibleEditors(workspace, asset).find((item) => item.id === panel.definitionId) && (
         <ForkPackageAction
           workspace={workspace}
           installation={
-            choices.find((item) => item.id === panel.definitionId)!.installation
+            compatibleEditors(workspace, asset).find((item) => item.id === panel.definitionId)!.installation
           }
         />
       )}

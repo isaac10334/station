@@ -1,3 +1,4 @@
+import { useOverlayContainer } from "./overlay-container";
 "use client";
 import { ContextMenu as Base } from "@base-ui/react/context-menu";
 import { useState } from "react";
@@ -105,8 +106,9 @@ export type ContextMenuContentProps = DropdownMenuPopupProps & {
  * exact point, and flips to stay on screen near the edges.
  */
 export function ContextMenuContent({ collisionPadding = 8, container, ...rest }: ContextMenuContentProps) {
+  const overlayContainer = useOverlayContainer();
   return (
-    <Base.Portal container={container}>
+    <Base.Portal container={container ?? overlayContainer}>
       <Base.Positioner collisionPadding={collisionPadding} className="z-(--z-dropdown) outline-none">
         <DropdownMenuPopup {...rest} />
       </Base.Positioner>

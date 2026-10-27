@@ -32,7 +32,7 @@ import {
   ComponentGrantSettings,
   ComponentRunApproval,
 } from "./components/workspace/component-permissions";
-import { hasCurrentArtifact, type ComponentAsset } from "../core/model";
+import { hasCurrentArtifact, type ComponentAsset } from "../core/asset-state";
 import { REQUIRED_GRANTS } from "../core/component-contract";
 import type { RunResult } from "../providers/component-runtime";
 

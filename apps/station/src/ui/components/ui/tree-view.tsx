@@ -19,6 +19,11 @@ export type TreeNode = {
   disabled?: boolean;
   /** Quiet right-aligned detail: a size, a count, a status. */
   meta?: React.ReactNode;
+  /** Independent controls at the row's trailing edge; never change row selection. */
+  actions?: React.ReactNode;
+  /** Optional source-authoring drag contract. The caller validates compatibility
+   * and commits; the tree never interprets payloads or mutates source itself. */
+  drag?: Pick<React.HTMLAttributes<HTMLDivElement>, "onDragStart" | "onDragOver" | "onDrop">;
 };
 
 export type TreeViewProps = Omit<React.ComponentProps<"div">, "children" | "onSelect"> & {
@@ -193,6 +198,7 @@ export function TreeView({
   /* ---------------------------------------------------------------- keyboard (APG tree view) */
 
   const handleKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((e.target as Element).closest("[data-tree-actions]")) return;
     onKeyDown?.(e);
     if (e.defaultPrevented || !tabStop) return;
     const row = byId.get(tabStop);
@@ -405,6 +411,8 @@ function TreeRow({
       data-row
       data-tree-id={node.id}
       data-selected={selected || undefined}
+      draggable={!!node.drag?.onDragStart}
+      {...node.drag}
       onFocus={onFocus}
       onClick={onPress}
       onDoubleClick={onDoubleClick}
@@ -446,6 +454,7 @@ function TreeRow({
       ) : (
         node.meta != null && <span className="shrink-0 font-mono text-2xs text-fg-4 tabular">{node.meta}</span>
       )}
+      {node.actions && <span data-tree-actions className="flex shrink-0 items-center gap-0.5" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>{node.actions}</span>}
     </div>
   );
 }

@@ -1,4 +1,6 @@
 node_modules/
+.dist-stage-*/
+*.station-write-*.tmp
 dist/
 .artifacts/
 .vercel/
@@ -19,6 +21,18 @@ build/
 artifacts/
 .env
 .cottontail-tmp/
+.desktop-test/
 
 apps/station/src/generated/web-tools.ts
 packages/sdk/dist/
+.station-cloud/
+
+apps/station/src/generated/script-tools.ts
+apps/station/src/generated/program-tools.ts
+apps/station/src/generated/program-resources.ts
+apps/station/.runtime/
+
+# Portable prepublication npm artifacts are intentional inputs.
+!/artifacts/
+/artifacts/*
+!/artifacts/loop-kit/

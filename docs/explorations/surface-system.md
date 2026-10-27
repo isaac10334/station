@@ -27,3 +27,23 @@
 ## Adjacent work
 
 Real identity and collaboration, grant-review interactions, and visual cleanup of the Source, Artifact, Run, and Settings views need separate slices. They are not prerequisites for exploring surfaces.
+
+## Source-aware editing, drawing and GPU
+
+Open directions consolidated from the superseded UI capability proposal on
+2026-10-27. Current portable semantic nodes, revisioned events and renderer
+boundaries belong to [Semantic UI](../semantic-ui.md) and the
+[programmable foundation](../programmable-workspace-foundation.md), rather than
+the former illustrative `station:tree` payload.
+
+- A source-aware tree editor needs a separately granted editor session; selection
+  and UI events alone must not grant source access.
+- Drawing needs bounded typed paths, shapes, text and resource handles, with
+  explicit errors for unsupported SVG/Canvas features. The existing static SVG
+  editor is not a general drawing API.
+- GPU execution needs independent allocation/submission budgets, cancellation,
+  device-loss handling and backend isolation. UI grants do not authorize it.
+- Hosts retain DOM, focus, accessibility, theme and placement. Validated recipes
+  and sandboxed surfaces do not permit arbitrary privileged React registration.
+
+These are proposals, not implemented APIs or a required implementation sequence.

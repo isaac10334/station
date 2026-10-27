@@ -1,3 +1,9 @@
+import { viewConfigurationSchema, type DataViewConfiguration } from "./data-sources";
+import { noteValueSchema, type NoteValue } from "./notes";
+import { actionButtonSchema, type ActionButtonConfiguration } from "./action-buttons";
+import { normalizeNavigation,type NavigationFilter } from "./navigation-filter";
+import { APP_SHELL_SEEDS, widgetDefaultsSchema } from "./widget-definitions";
+import { definitionSnapshotSchema, instanceDefaults, reconcileDefinitionDefaults, type DefinitionSnapshot } from "./definition-snapshot";
 /**
  * Pure, versioned workspace layout. A panel ID identifies one placed instance;
  * widget type is metadata and may occur any number of times.
@@ -14,9 +20,14 @@ import {
   type WidgetSize,
   type WidgetTone,
   type StackMode,
+  type WidgetChrome,
 } from "./panel-layout";
+import type { BrowserConfiguration } from "@station/capabilities";
+import { browserConfiguration, defaultBrowserConfiguration } from "./browser-policy";
+import { slotReferenceSchema, type SlotReference } from "./slot-reference";
 
-export type Surface = "main" | "dashboard" | "sidebar" | "bottom";
+export const SURFACES = ["main", "dashboard", "sidebar", "bottom", "toolbar"] as const;
+export type Surface = (typeof SURFACES)[number];
 export type Intent =
   "append" | "tab" | "swap" | "left" | "right" | "top" | "bottom";
 export type Target = {
@@ -39,6 +50,7 @@ export type SurfacePolicy = {
 export type DockPolicy = Record<Surface, SurfacePolicy>;
 /** Host configuration is executable policy, never part of the saved layout. */
 export const DEFAULT_DOCK_POLICY: DockPolicy = {
+  toolbar: { acceptedTags: ["widget"], intents: ["append", "tab"], split: false, relocateStack: false, maxLeafStacks: 1 },
   main: {
     acceptedTags: ["browser", "view", "widget"],
     intents: ["append", "tab", "swap", "left", "right", "top", "bottom"],
@@ -55,10 +67,10 @@ export const DEFAULT_DOCK_POLICY: DockPolicy = {
   },
   sidebar: {
     acceptedTags: ["navigation", "browser", "view", "widget"],
-    intents: ["append", "tab"],
-    split: false,
+    intents: ["append", "tab", "swap", "left", "right", "top", "bottom"],
+    split: true,
     relocateStack: false,
-    maxLeafStacks: 1,
+    maxLeafStacks: 100,
   },
   bottom: {
     acceptedTags: ["browser", "view", "widget"],
@@ -70,6 +82,10 @@ export const DEFAULT_DOCK_POLICY: DockPolicy = {
 };
 /** Built-in widget eligibility; double-click does nothing unless a type explicitly opts in. */
 export type WidgetPlacement = {
+  /** Provides an inline presentation in constrained toolbar slots. */
+  compact?: boolean;
+  /** Compact floating chrome uses the same placement and drag lifecycle as windows. */
+  window?: { width: number; height: number; minHeight: number; chrome: "overlay" };
   docks: readonly Surface[];
   floating: boolean;
   doubleClick?: "float" | "none";
@@ -79,7 +95,12 @@ const ordinaryWidget: WidgetPlacement = {
   floating: true,
   doubleClick: "none",
 };
-export const WIDGET_PLACEMENT = {
+export const WIDGET_PLACEMENT: Record<WidgetId, WidgetPlacement> = {
+  "desk-controls": { ...ordinaryWidget, compact: true, docks: [...ordinaryWidget.docks, "toolbar"], window: { width: 340, height: 48, minHeight: 40, chrome: "overlay" } },
+  "quick-capture": ordinaryWidget,
+  note: ordinaryWidget,
+  ide: ordinaryWidget,
+  "desk-settings": ordinaryWidget,
   weather: ordinaryWidget,
   clock: ordinaryWidget,
   capabilities: ordinaryWidget,
@@ -87,8 +108,43 @@ export const WIDGET_PLACEMENT = {
   snake: ordinaryWidget,
   "docking-inspector": ordinaryWidget,
   "ai-chat": ordinaryWidget,
+  "web-browser": ordinaryWidget,
+  "browser-tab": ordinaryWidget,
+  "app-shell": ordinaryWidget,
+  "desktop-shell": { docks: [], floating: false },
+  navigation: ordinaryWidget,
+  "asset-browser": ordinaryWidget,
+  "main-surface": ordinaryWidget,
+  "widget-editor": ordinaryWidget,
+  "widget-list": ordinaryWidget,
+  "data-view": ordinaryWidget,
+  "action-button": { ...ordinaryWidget, compact: true, docks: [...ordinaryWidget.docks, "toolbar"] },
+  program: { ...ordinaryWidget, compact:true, docks:[...ordinaryWidget.docks,"toolbar"] },
 } satisfies Record<WidgetId, WidgetPlacement>;
-export type Panel = {
+/** Per-instance chrome is independent of placement and authored content. */
+export type PanelAppearance = {
+  /** Fill the slot, scroll natural content, or clip it at the slot boundary. */
+  contentSizing?: "fill" | "scroll" | "clip";
+  displayName?: string;
+  hideDisplayName?: boolean;
+  flippable?: boolean;
+  chrome?: WidgetChrome;
+};
+export type Panel = PanelAppearance & {
+  note?: NoteValue;
+  surface?: import("./authored-surface").AuthoredSurface;
+  definitionSnapshot?: DefinitionSnapshot;
+  compositionOrigin?: { assetId: string; revision: number; key?: string };
+  sourceAssetId?: string;
+  programDraft?: import("./programs").ProgramDraft;
+  programCompact?:boolean;
+  /** Resolved live identity; definitions contain local keys instead. */
+  targetRef?: SlotReference;
+  dataView?: DataViewConfiguration;
+  actionButton?: ActionButtonConfiguration;
+  navigation?: {filter:NavigationFilter;presentation:'list'|'tree'|'compact';selectedAssetId?:string;areasInitialized?:boolean};
+  listMode?: "inline" | "tab";
+  instanceShell?: boolean;
   ownerId?: string;
   definitionId?: string;
   slotId?: string;
@@ -103,6 +159,10 @@ export type Panel = {
       size: WidgetSize;
       tone?: WidgetTone;
       stackMode?: StackMode;
+      /** Default definition created by this Layout's add action. */
+      childWidget?: WidgetId;
+      browser?: BrowserConfiguration;
+      background?: string;
       tags: string[];
     }
   | {
@@ -127,7 +187,10 @@ export type Stack = {
   tabs: string[];
   active: string;
   keepEmpty?: boolean;
-  presentation?: "tabs" | "carousel";
+  /** Legacy preference retained for document/wire compatibility. Empty slots
+   * now survive every departure until an explicit removeSlot command. */
+  autoClose?: boolean;
+  presentation?: "plain" | "tabs" | "carousel";
   allowedDefinitions?: string[];
   slotId?: string;
 };
@@ -142,11 +205,13 @@ export type Split = {
 export type Grid = {
   kind: "grid";
   id: string;
-  cells: { id: string; node: Node }[];
+  cells: { id: string; node: Node; height?: number }[];
 };
 export type Node = Stack | Split | Grid;
 export type DockLayout = {
-  version: 4;
+  version: 5;
+  /** A desk owns one root shell instance; its named surfaces use this same graph. */
+  rootId?: string;
   panels: Record<string, Panel>;
   /** Layout widget ID -> owned subtree. Same nodes, commands and persistence as surfaces. */
   containers: Record<string, Node>;
@@ -154,17 +219,37 @@ export type DockLayout = {
   bottomSize: number;
   /** Saved desktop side-dock width in CSS pixels. */
   sidebarWidth: number;
+  /** Centered dashboard width as a percentage of its available surface. */
+  dashboardWidth?: number;
   browserView: BrowserView;
   maximized: string | null;
   hidden: Partial<Record<Surface, boolean>>;
   sidebarSide: "left" | "right";
   floating: Record<
     string,
-    { x: number; y: number; width: number; height: number; returnTo: Surface }
+    { x: number; y: number; width: number; height: number; returnTo: Surface;
+      presentation?: "window" | "peek"; edge?: "top" | "bottom" | "left" | "right"; hidden?: boolean }
   >;
 };
 /** Commands are the sole structural mutation boundary; rejected commands leave the input intact. */
 export type Command =
+  | { type: "configureNote"; panelId: string; value?: NoteValue; sourceAssetId?: string | null }
+  | { type: "configureDataView"; panelId: string; config: DataViewConfiguration }
+  | { type: "configureActionButton"; panelId: string; config: ActionButtonConfiguration }
+  | {type:'configureProgram';panelId:string;compact:boolean}
+  | { type: "configureListItem"; panelId: string; mode: "inline" | "tab" }
+  | { type: "setWidgetTarget"; panelId: string; reference: SlotReference | null }
+  /** All-or-nothing transaction; one host history entry, no intermediate layout. */
+  | { type: "batch"; commands: readonly Command[] }
+  | { type: "setRootWidget"; widget: "app-shell" | "desktop-shell"; definitionId?: string; definitionSnapshot?: DefinitionSnapshot; defaults?: import("./widget-definitions").WidgetDefaults; slots?: import("./widget-definitions").WidgetSeed[][]; recipeKey?: string; recipeTarget?: { key: string; slot?: number } }
+  | { type: "configureShell"; background: string }
+  | { type: "windowVisibility"; panelId: string; hidden: boolean }
+  /** Dashboard rows use explicit pixel heights; undefined restores automatic size. */
+  | { type: "resizeRow"; cellId: string; height?: number }
+  | { type: "resizeDashboard"; percent: number }
+  /** Switch a Layout between a resizable row grid and a split tree, retaining
+   * every backing slot and widget identity. Undo restores the previous structure. */
+  | { type: "setLayoutArrangement"; panelId: string; arrangement: "rows" | "split" }
   | {
       type: "createEditorPart";
       ownerId: string;
@@ -175,6 +260,7 @@ export type Command =
     }
   | { type: "createCommandOutput"; definitionId: string; target: Target }
   | { type: "setEditor"; panelId: string; definitionId?: string }
+  | { type: "configureIde"; panelId: string; assetId: string | null }
   | { type: "compose"; ownerId: string; panels: Panel[]; root: Node }
   | {
       type: "createContribution";
@@ -188,31 +274,54 @@ export type Command =
   | { type: "splitSlot"; nodeId: string; axis: "horizontal" | "vertical" }
   | { type: "addSlot"; surface: Surface; ownerId?: string }
   | { type: "removeSlot"; nodeId: string }
+  | { type: "configureSlot"; nodeId: string; autoClose: boolean }
   | { type: "closeAndRemoveSlot"; panelId: string }
-  | { type: "createWidget"; widget: WidgetId; target: Target; id?: string }
+  | { type: "createWidget"; widget: WidgetId; target: Target; id?: string; chrome?: WidgetChrome; childWidget?: WidgetId; definitionId?: string; definitionSnapshot?: DefinitionSnapshot; defaults?: import("./widget-definitions").WidgetDefaults; slots?: import("./widget-definitions").WidgetSeed[][]; recipeKey?: string; recipeTarget?: { key: string; slot?: number } }
+  /** Compatible recipes share a renderer/state contract. Identity, children and
+   * runtime state survive; cross-renderer migration is rejected without adapters. */
+  | { type: "setWidgetDefinition"; panelId: string; definitionId: string; widget: WidgetId; definitionSnapshot?: DefinitionSnapshot; reconciliation?: "preserve" | "reset"; defaults?: import("./widget-definitions").WidgetDefaults }
   | { type: "createAssetView"; assetId: string; target: Target; id?: string }
   | { type: "openAsset"; assetId: string; target?: Target }
   | { type: "createWebWidget"; assetId: string; id?: string; target?: Target }
-  | { type: "move"; panelId: string; target: Target }
+  | { type: "move"; panelId: string; target: Target; deferEmptySlot?: boolean }
   | { type: "activate"; panelId: string }
   | { type: "close"; panelId: string }
   | { type: "resizeSplit"; nodeId: string; ratio: number }
   | { type: "resizeBottom"; size: number }
   | { type: "resizeSidebar"; width: number }
   | { type: "resizeWidget"; panelId: string; size: WidgetSize }
+  | ({ type: "configurePanel"; panelId: string } & PanelAppearance)
+  | { type: "configureBrowser"; panelId: string; config: BrowserConfiguration }
   | {
       type: "configureWidget";
       panelId: string;
       tone?: WidgetTone;
       stackMode?: StackMode;
+      childWidget?: WidgetId | null;
+      chrome?: WidgetChrome;
+      /** Instance display name; empty uses the catalog title. */
+      displayName?: string;
+      hideDisplayName?: boolean;
+      flippable?: boolean;
     }
   | { type: "browserView"; view: BrowserView }
   | { type: "maximize"; panelId: string | null }
   | { type: "visibility"; surface: Surface; hidden: boolean }
   | { type: "sidebarSide"; side: "left" | "right" }
   | { type: "float"; panelId: string; x?: number; y?: number }
+  /** A drawer contains one real panel (which can itself be a Layout). Closing hides
+   * it; docking restores its saved destination. No duplicated content tree. */
+  | { type: "presentPanel"; panelId: string; mode: "window" | "peek"; edge?: "top" | "bottom" | "left" | "right" }
+  | { type: "peekVisibility"; panelId: string; hidden: boolean }
   | { type: "dockFloat"; panelId: string; target?: Target }
-  | { type: "moveFloat"; panelId: string; x: number; y: number };
+  | { type: "moveFloat"; panelId: string; x: number; y: number }
+  /** One settled resize is one undo step; React owns pointer previews. */
+  | { type: "resizeFloat"; panelId: string; width: number; height: number };
+/** Layouts accept movable children; package/editor ownership remains restrictive. */
+export function isLayoutPanel(panel: Panel | undefined): panel is Extract<Panel, { kind: "widget" }> & { widget: "stack" | "web-browser" | "main-surface" | "app-shell" | "widget-list" } {
+  return panel?.kind === "widget" && (["stack", "web-browser", "main-surface", "widget-list"].includes(panel.widget) || (panel.widget === "app-shell" && panel.instanceShell === true));
+}
+
 export type Result =
   | { ok: true; layout: DockLayout; panelId?: string }
   | { ok: false; layout: DockLayout; reason: string };
@@ -337,26 +446,27 @@ export function panelSlot(
           target: { surface, ownerId, nodeId: node.id, intent: "tab" },
         };
     });
-  for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const)
+  for (const surface of SURFACES)
     scan(layout.surfaces[surface], surface);
   for (const [ownerId, root] of Object.entries(layout.containers))
     scan(root, hostSurface(layout, ownerId) ?? "dashboard", ownerId);
   return result;
 }
-export const HOME_ID = "workspace-home";
-export const BROWSER_ID = "asset-browser";
-export const NAVIGATION_ID = "workspace-navigation";
+import { ROOT_ID, HOME_ID, BROWSER_ID, NAVIGATION_ID } from "./dock-identities";
+export { ROOT_ID, HOME_ID, BROWSER_ID, NAVIGATION_ID } from "./dock-identities";
 
 export function createDockLayout(
-  widgets: WidgetId[] = ["weather", "clock", "stack", "capabilities"],
+  widgets: WidgetId[] = ["clock", "action-button"],
 ): DockLayout {
   const panels: Record<string, Panel> = {
+    [ROOT_ID]: { id: ROOT_ID, kind: "widget", widget: "app-shell", definitionId: "builtin:app-shell", size: "standard", tags: ["widget"], chrome: "seamless", hideDisplayName: false, stackMode: "tabs" },
     [HOME_ID]: { id: HOME_ID, kind: "home", tags: ["view"] },
     [BROWSER_ID]: { id: BROWSER_ID, kind: "browser", tags: ["browser"] },
     [NAVIGATION_ID]: {
       id: NAVIGATION_ID,
       kind: "navigation",
       tags: ["navigation"],
+      navigation:{filter:normalizeNavigation(),presentation:'list'},
     },
   };
   const cells = widgets.filter(isWidget).map((widget, index) => {
@@ -365,6 +475,7 @@ export function createDockLayout(
       id,
       kind: "widget",
       widget,
+      ...(widget === "action-button" ? { actionButton: actionButtonSchema.parse({ action: "widgets.add", label: "Add a widget", icon: "Plus", variant: "default", fullWidth: true }) } : {}),
       size: "standard",
       tags: ["widget"],
     };
@@ -374,21 +485,23 @@ export function createDockLayout(
     };
   });
   return {
-    version: 4,
+    version: 5,
+    rootId: ROOT_ID,
     panels,
     containers: Object.fromEntries(
       Object.values(panels)
-        .filter((p) => p.kind === "widget" && p.widget === "stack")
+        .filter((p) => isLayoutPanel(p))
         .map((p) => [p.id, emptySlot()]),
     ),
     surfaces: {
+      toolbar: { ...emptySlot(), id: "stack:toolbar" },
       main: stack(HOME_ID, "stack:main"),
       dashboard: {
         kind: "grid",
         id: "grid:dashboard",
         cells: bentoRows(cells),
       },
-      sidebar: stack(NAVIGATION_ID, "stack:sidebar"),
+      sidebar: { ...stack(NAVIGATION_ID, "stack:sidebar"), presentation: "plain" },
       bottom: { ...stack(BROWSER_ID, "stack:bottom"), keepEmpty: true },
     },
     sidebarWidth: 310,
@@ -444,7 +557,7 @@ export function panelSurface(
   layout: DockLayout,
   panelId: string,
 ): Surface | null {
-  for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const)
+  for (const surface of SURFACES)
     if (surfacePanels(layout, surface).includes(panelId)) return surface;
   return null;
 }
@@ -462,6 +575,8 @@ export function placementReason(
   target: Target,
   policy: DockPolicy = DEFAULT_DOCK_POLICY,
 ): string | null {
+  if (target.surface === "toolbar" && (target.ownerId || panel.kind !== "widget" || !WIDGET_PLACEMENT[panel.widget].compact || panel.widget==='program'&&!(panel.programCompact??panel.programDraft?.compact)))
+    return "Only compact-capable widgets can enter the toolbar";
   if (panel.ownerId && panel.ownerId !== target.ownerId)
     return "This widget belongs to its owner";
   const surface = target.ownerId ? policy.dashboard : policy[target.surface];
@@ -481,7 +596,7 @@ export function placementReason(
     return "Navigation belongs in the sidebar";
   if (
     panel.kind === "widget" &&
-    !WIDGET_PLACEMENT[panel.widget].docks.includes(target.surface)
+    !(WIDGET_PLACEMENT[panel.widget].docks as readonly Surface[]).includes(target.surface)
   )
     return "Widget cannot dock in this surface";
   return null;
@@ -506,13 +621,16 @@ function rewrite(node: Node | null, fn: (node: Node) => Node): Node | null {
         : node;
   return fn(nested);
 }
+/** Removing an instance preserves its placement for explicit reuse/removal. */
 function without(node: Node | null, panelId: string): Node | null {
   if (!node) return null;
   if (node.kind === "stack") {
     const tabs = node.tabs.filter((id) => id !== panelId);
-    return tabs.length || node.keepEmpty
+    const retained = !tabs.length && node.tabs.includes(panelId);
+    return tabs.length || node.keepEmpty || node.autoClose === false || retained
       ? {
           ...node,
+          ...(retained ? { keepEmpty: true } : {}),
           tabs,
           active: tabs.includes(node.active) ? node.active : (tabs[0] ?? ""),
         }
@@ -652,7 +770,7 @@ export function dropReason(
     const owner = layout.panels[target.ownerId];
     if (
       owner &&
-      !(owner.kind === "widget" && owner.widget === "stack") &&
+      !isLayoutPanel(owner) && !isNavigationPanel(owner) &&
       panel.ownerId !== target.ownerId
     )
       return "This composition only accepts its owned widgets";
@@ -746,14 +864,55 @@ export function dropReason(
 /** Atomic validated command; rejection returns the original layout reference. */
 function reduceDockCommand(
   layout: DockLayout,
-  command: Command,
+  command: Exclude<Command, { type: "batch" | "resizeRow" | "resizeDashboard" | "setWidgetTarget" | "configureListItem" | "configureDataView" | "configureActionButton" | 'configureProgram' }>,
   policy: DockPolicy = DEFAULT_DOCK_POLICY,
 ): Result {
+  if (command.type === "setRootWidget") {
+    if (!["app-shell", "desktop-shell"].includes(command.widget)) return { ok: false, layout, reason: "Choose a shell definition" };
+    const parsed = widgetDefaultsSchema.safeParse(command.defaults ?? {});
+    if (!parsed.success) return { ok: false, layout, reason: "Invalid shell defaults" };
+    const id = layout.rootId ?? ROOT_ID;
+    const prior = layout.panels[id];
+    return { ok: true, layout: { ...layout, rootId: id, panels: { ...layout.panels, [id]: { ...prior, ...parsed.data, id, kind: "widget", widget: command.widget, definitionId: command.definitionId ?? `builtin:${command.widget}`, definitionSnapshot: command.definitionSnapshot, size: "standard", tags: ["widget"], chrome: "seamless" } } } };
+  }
+  if (command.type === "configureShell") {
+    const root = layout.rootId && layout.panels[layout.rootId];
+    if (!root || root.kind !== "widget" || (command.background !== "" && !/^#[0-9a-fA-F]{6}$/.test(command.background))) return { ok: false, layout, reason: "Choose a six-digit background color" };
+    return { ok: true, layout: { ...layout, panels: { ...layout.panels, [root.id]: { ...root, background: command.background || undefined } } } };
+  }
+  if (command.type === "windowVisibility") {
+    const position = layout.floating[command.panelId];
+    if (!position || typeof command.hidden !== "boolean") return { ok: false, layout, reason: "Choose a floating window" };
+    return { ok: true, layout: { ...layout, floating: { ...layout.floating, [command.panelId]: { ...position, hidden: command.hidden } } } };
+  }
+  if ("panelId" in command && command.panelId === layout.rootId && !["configurePanel", "setWidgetDefinition"].includes(command.type)) return { ok: false, layout, reason: "The root shell cannot be moved or removed" };
+  if (command.type === "setLayoutArrangement") {
+    const owner = layout.panels[command.panelId], root = layout.containers[command.panelId];
+    if (!isLayoutPanel(owner) || !root || !["rows", "split"].includes(command.arrangement)) return { ok: false, layout, reason: "Choose a Layout widget" };
+    let node: Node = root;
+    if (command.arrangement === "rows" && root.kind !== "grid") node = { kind: "grid", id: uid("rows"), cells: [{ id: uid("row"), node: root }] };
+    if (command.arrangement === "split" && root.kind === "grid") node = root.cells.length ? root.cells.map(cell => cell.node).reduce((first, second) => ({ kind: "split", id: uid("split"), axis: "vertical", ratio: 0.5, first, second })) : emptySlot();
+    return { ok: true, layout: { ...layout, containers: { ...layout.containers, [owner.id]: node } } };
+  }
+  if (command.type === "setWidgetDefinition") {
+    const panel = layout.panels[command.panelId];
+    if (panel?.kind !== "widget" || panel.widget !== command.widget) return { ok: false, layout, reason: "State migration requires the same widget renderer" };
+    const defaults = widgetDefaultsSchema.safeParse(command.defaults ?? {});
+    if (!defaults.success || ((defaults.data.stackMode || defaults.data.childWidget) && !isLayoutPanel(panel))) return { ok: false, layout, reason: "Invalid definition defaults" };
+    const current = instanceDefaults(panel, panel.definitionSnapshot?.recipe.defaults);
+    const next = command.reconciliation === "reset" ? defaults.data : reconcileDefinitionDefaults(panel.definitionSnapshot?.recipe.defaults ?? {}, current, defaults.data);
+    const retained = { ...panel };
+    for (const key of Object.keys(widgetDefaultsSchema.shape)) delete (retained as unknown as Record<string, unknown>)[key];
+    return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: { ...retained, ...next, definitionId: command.definitionId, definitionSnapshot: command.definitionSnapshot } } } };
+  }
   const reject = (reason: string): Result => ({ ok: false, layout, reason });
-  if (command.type === "setEditor") {
+  if (command.type === "setEditor" || command.type === "configureIde") {
     const owner = layout.panels[command.panelId];
-    if (owner?.kind !== "asset") return reject("Choose an asset editor");
+    if (command.type === "setEditor" ? owner?.kind !== "asset" : owner?.kind !== "widget" || owner.widget !== "ide") return reject("Choose a compatible source editor");
     const removed = new Set(descendants(layout, owner.id));
+    const nextOwner = { ...owner };
+    if (command.type === "setEditor" && nextOwner.kind === "asset") nextOwner.definitionId = command.definitionId;
+    if (command.type === "configureIde") nextOwner.sourceAssetId = command.assetId ?? undefined;
     return {
       ok: true,
       layout: {
@@ -762,13 +921,13 @@ function reduceDockCommand(
           ...Object.fromEntries(
             Object.entries(layout.panels).filter(([id]) => !removed.has(id)),
           ),
-          [owner.id]: { ...owner, definitionId: command.definitionId },
+          [owner.id]: nextOwner,
         },
         containers: Object.fromEntries(
-          Object.entries(layout.containers).filter(
-            ([id]) => id !== owner.id && !removed.has(id),
-          ),
+          Object.entries(layout.containers).filter(([id]) => id !== owner.id && !removed.has(id)),
         ),
+        floating: Object.fromEntries(Object.entries(layout.floating).filter(([id]) => !removed.has(id))),
+        maximized: removed.has(layout.maximized ?? "") ? null : layout.maximized,
       },
     };
   }
@@ -838,8 +997,6 @@ function reduceDockCommand(
       ownerId: command.ownerId,
       intent: "append",
     };
-    if (command.surface !== "dashboard" && !command.ownerId)
-      return reject("Add slots on the dashboard or in a Layout");
     const root = targetRoot(layout, target);
     if (
       (command.ownerId && !root) ||
@@ -859,14 +1016,9 @@ function reduceDockCommand(
             ...root,
             cells: [...root.cells, { id: uid("cell"), node: emptySlot() }],
           }
-        : {
-            kind: "split",
-            id: uid("split"),
-            axis: "horizontal",
-            ratio: 0.5,
-            first: root,
-            second: emptySlot(),
-          };
+        : command.surface === "sidebar" && !command.ownerId
+          ? { kind: "grid", id: uid("grid"), cells: [{ id: uid("cell"), node: root }, { id: uid("cell"), node: emptySlot() }] }
+          : { kind: "split", id: uid("split"), axis: "horizontal", ratio: 0.5, first: root, second: emptySlot() };
     return { ok: true, layout: setTargetRoot(layout, target, node) };
   }
   if (command.type === "closeAndRemoveSlot") {
@@ -888,6 +1040,12 @@ function reduceDockCommand(
       policy,
     );
     return removed.ok ? removed : reject(removed.reason);
+  }
+  if (command.type === "configureSlot") {
+    if (typeof command.autoClose !== "boolean") return reject("Invalid empty slot behavior");
+    const node = findNode(layout, command.nodeId);
+    if (node?.kind !== "stack") return reject("Choose a slot");
+    return { ok: true, layout: mapRoots(layout, root => rewrite(root, item => item.id === node.id ? { ...node, autoClose: command.autoClose, keepEmpty: true } : item)) };
   }
   if (command.type === "removeSlot") {
     const node = findNode(layout, command.nodeId);
@@ -918,8 +1076,8 @@ function reduceDockCommand(
     return { ok: true, layout: mapRoots(layout, prune) };
   }
   if (command.type === "visibility")
-    return command.surface === "dashboard"
-      ? reject("Dashboard is part of Overview")
+    return ["dashboard", "toolbar"].includes(command.surface)
+      ? reject(command.surface === "toolbar" ? "The toolbar cannot be hidden" : "Dashboard is part of Overview")
       : {
           ok: true,
           layout: {
@@ -929,6 +1087,16 @@ function reduceDockCommand(
         };
   if (command.type === "sidebarSide")
     return { ok: true, layout: { ...layout, sidebarSide: command.side } };
+  if (command.type === "resizeFloat") {
+    const item = layout.floating[command.panelId];
+    if (!item || !Number.isFinite(command.width) || !Number.isFinite(command.height)) return reject("Invalid floating panel size");
+    const width = Math.max(220, Math.min(4096, command.width));
+    const panel = layout.panels[command.panelId];
+    const minHeight = panel?.kind === "widget" ? WIDGET_PLACEMENT[panel.widget].window?.minHeight ?? 160 : 160;
+    const height = Math.max(minHeight, Math.min(4096, command.height));
+    if (item.width === width && item.height === height) return { ok: true, layout };
+    return { ok: true, layout: { ...layout, floating: { ...layout.floating, [command.panelId]: { ...item, width, height } } } };
+  }
   if (command.type === "moveFloat") {
     const item = layout.floating[command.panelId];
     if (!item || !Number.isFinite(command.x) || !Number.isFinite(command.y))
@@ -950,6 +1118,17 @@ function reduceDockCommand(
       },
     };
   }
+  if (command.type === "peekVisibility") {
+    const item = layout.floating[command.panelId];
+    if (!item || item.presentation !== "peek") return reject("Panel is not in a side peek");
+    return { ok: true, layout: { ...layout, floating: { ...layout.floating, [command.panelId]: { ...item, hidden: command.hidden } } } };
+  }
+  if (command.type === "presentPanel") {
+    if (!["window", "peek"].includes(command.mode) || command.edge && !["top", "bottom", "left", "right"].includes(command.edge)) return reject("Invalid panel presentation");
+    const result = layout.floating[command.panelId] ? { ok: true as const, layout } : reduceDock(layout, { type: "float", panelId: command.panelId }, policy);
+    if (!result.ok) return result;
+    return { ok: true, panelId: command.panelId, layout: { ...result.layout, floating: { ...result.layout.floating, [command.panelId]: { ...result.layout.floating[command.panelId], presentation: command.mode, edge: command.mode === "peek" ? command.edge ?? "right" : undefined, hidden: false } } } };
+  }
   if (command.type === "float") {
     const panel = layout.panels[command.panelId];
     const from = hostSurface(layout, command.panelId);
@@ -970,8 +1149,8 @@ function reduceDockCommand(
           [panel.id]: {
             x: Math.max(0, command.x ?? 80),
             y: Math.max(0, command.y ?? 80),
-            width: 420,
-            height: 360,
+            width: panel.kind === "widget" ? WIDGET_PLACEMENT[panel.widget].window?.width ?? (panel.widget === "docking-inspector" ? 340 : 420) : 420,
+            height: panel.kind === "widget" ? WIDGET_PLACEMENT[panel.widget].window?.height ?? (panel.widget === "docking-inspector" ? 640 : 360) : 360,
             returnTo: from,
           },
         },
@@ -1025,6 +1204,15 @@ function reduceDockCommand(
           },
         }
       : reject("Invalid bottom size");
+  if (command.type === "configureBrowser") {
+    const panel = layout.panels[command.panelId];
+    if (panel?.kind !== "widget" || !["web-browser", "browser-tab"].includes(panel.widget)) return reject("Unknown browser widget.");
+    try {
+      const browser = browserConfiguration(command.config);
+      if (panel.widget === "browser-tab" && browser.tabs.length !== 1) return reject("A browser-tab widget owns one page");
+      return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: { ...panel, browser } } } };
+    } catch { return reject("Invalid browser configuration."); }
+  }
   if (command.type === "resizeWidget") {
     const panel = layout.panels[command.panelId];
     if (
@@ -1043,6 +1231,35 @@ function reduceDockCommand(
       },
     };
   }
+  if (command.type === "configureNote") {
+    const panel = layout.panels[command.panelId];
+    if (panel?.kind !== "widget" || panel.widget !== "note") return reject("Choose a Notes widget");
+    if (command.value && !noteValueSchema.safeParse(command.value).success) return reject("Invalid note source");
+    if (command.sourceAssetId !== undefined && command.sourceAssetId !== null && (typeof command.sourceAssetId !== "string" || command.sourceAssetId.length > 200)) return reject("Invalid note reference");
+    return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: { ...panel, note: command.value ?? panel.note, sourceAssetId: command.sourceAssetId === null ? undefined : command.sourceAssetId ?? panel.sourceAssetId } } } };
+  }
+  if (command.type === "configurePanel" || command.type === "configureWidget") {
+    if (command.displayName !== undefined && (typeof command.displayName !== "string" || command.displayName.trim().length > 120))
+      return reject("Display name must be at most 120 characters");
+    if (command.flippable !== undefined && typeof command.flippable !== "boolean") return reject("Invalid flip behavior");
+    if (command.hideDisplayName !== undefined && typeof command.hideDisplayName !== "boolean")
+      return reject("Invalid display name visibility");
+    if (command.chrome !== undefined && !["default", "compact", "seamless"].includes(command.chrome))
+      return reject("Invalid widget chrome");
+    if (command.type === "configurePanel" && command.contentSizing !== undefined && !["fill", "scroll", "clip"].includes(command.contentSizing)) return reject("Invalid content sizing");
+    if (command.type === "configurePanel") {
+      const panel = layout.panels[command.panelId];
+      if (!panel || ["home", "browser", "navigation"].includes(panel.kind)) return reject("Choose a user widget");
+      return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: {
+        ...panel,
+        contentSizing: command.contentSizing ?? panel.contentSizing,
+        displayName: command.displayName === undefined ? panel.displayName : command.displayName.trim() || undefined,
+        hideDisplayName: command.hideDisplayName ?? panel.hideDisplayName,
+        flippable: command.flippable ?? panel.flippable,
+        chrome: command.chrome ?? panel.chrome,
+      } } } };
+    }
+  }
   if (command.type === "configureWidget") {
     const panel = layout.panels[command.panelId];
     if (panel?.kind !== "widget") return reject("Unknown widget instance");
@@ -1051,10 +1268,11 @@ function reduceDockCommand(
       !["blue", "violet", "coral", "mint", "slate"].includes(command.tone)
     )
       return reject("Invalid widget color");
+    if (command.childWidget !== undefined && (!isLayoutPanel(panel) || (command.childWidget !== null && !isWidget(command.childWidget)))) return reject("Invalid default child widget");
     if (
       command.stackMode &&
-      (!["carousel", "tabs"].includes(command.stackMode) ||
-        panel.widget !== "stack")
+      (!["carousel", "tabs", "sidebar"].includes(command.stackMode) ||
+        !isLayoutPanel(panel))
     )
       return reject("Invalid stack mode");
     return {
@@ -1065,6 +1283,11 @@ function reduceDockCommand(
           ...layout.panels,
           [panel.id]: {
             ...panel,
+            displayName: command.displayName === undefined ? panel.displayName : command.displayName.trim() || undefined,
+            chrome: command.chrome ?? panel.chrome,
+            childWidget: command.childWidget === null ? undefined : command.childWidget ?? panel.childWidget,
+            hideDisplayName: command.hideDisplayName ?? panel.hideDisplayName,
+            flippable: command.flippable ?? panel.flippable,
             tone: command.tone ?? panel.tone,
             stackMode: command.stackMode ?? panel.stackMode,
           },
@@ -1100,6 +1323,10 @@ function reduceDockCommand(
     };
   }
   if (command.type === "activate") {
+    if (layout.floating[command.panelId]) return {
+      ok: true, panelId: command.panelId,
+      layout: { ...layout, floating: { ...layout.floating, [command.panelId]: { ...layout.floating[command.panelId], hidden: false } } },
+    };
     if (
       !panelSlot(layout, command.panelId) &&
       !layout.floating[command.panelId]
@@ -1127,7 +1354,7 @@ function reduceDockCommand(
       return reject("This panel cannot be closed");
     if (
       layout.containers[panel.id] &&
-      !(panel.kind === "widget" && panel.widget === "stack")
+      !isLayoutPanel(panel)
     ) {
       const removed = new Set([panel.id, ...descendants(layout, panel.id)]);
       return {
@@ -1239,12 +1466,23 @@ function reduceDockCommand(
     target = command.target;
   } else if (command.type === "createWidget") {
     if (!isWidget(command.widget)) return reject("Unknown widget");
+    const defaults = widgetDefaultsSchema.safeParse(command.defaults ?? {});
+    if (!defaults.success || ((defaults.data.stackMode || defaults.data.childWidget) && !["stack", "web-browser", "main-surface"].includes(command.widget))) return reject("Invalid definition defaults");
+    if (command.chrome !== undefined && !["default", "compact", "seamless"].includes(command.chrome)) return reject("Invalid widget chrome");
+    if (command.childWidget !== undefined && (!isWidget(command.childWidget) || !["stack", "web-browser", "main-surface"].includes(command.widget))) return reject("Invalid default child widget");
     const id = command.id ?? uid("widget");
     if (layout.panels[id]) return reject("Panel ID already exists");
     panel = {
       id,
       kind: "widget",
+      ...defaults.data,
+      definitionId: command.definitionId,
+      definitionSnapshot: command.definitionSnapshot,
       widget: command.widget,
+      instanceShell: command.widget === "app-shell" || undefined,
+      chrome: command.chrome ?? defaults.data.chrome,
+      childWidget: command.childWidget ?? defaults.data.childWidget ?? (command.widget === "web-browser" ? "browser-tab" : undefined),
+      browser: command.widget === "browser-tab" ? defaultBrowserConfiguration() : undefined,
       size: "standard",
       tags: ["widget"],
     };
@@ -1342,18 +1580,18 @@ function reduceDockCommand(
   const floating = { ...next.floating };
   delete floating[panel.id];
   const containers = { ...next.containers };
-  if (
-    panel.kind === "widget" &&
-    panel.widget === "stack" &&
-    !containers[panel.id]
-  )
-    containers[panel.id] = emptySlot();
+  if (isLayoutPanel(panel) && !containers[panel.id]) containers[panel.id] = emptySlot();
   next = {
     ...next,
     panels: { ...layout.panels, [panel.id]: panel },
     floating,
     containers,
   };
+  if (command.type === "createWidget" && panel.kind === "widget" && panel.widget === "web-browser") {
+    const childId = uid("browser-tab");
+    next.panels[childId] = { id: childId, kind: "widget", widget: "browser-tab", size: "standard", chrome: "seamless", browser: defaultBrowserConfiguration(), tags: ["widget"] };
+    next.containers[panel.id] = { ...stack(childId), keepEmpty: true };
+  }
   return panelSlot(next, panel.id)
     ? { ok: true, layout: next, panelId: panel.id }
     : reject("Insertion failed");
@@ -1393,8 +1631,7 @@ export function validateDock(
     if (
       ownerId &&
       !(
-        layout.panels[ownerId]?.kind === "widget" &&
-        layout.panels[ownerId].widget === "stack"
+        isLayoutPanel(layout.panels[ownerId]) || isNavigationPanel(layout.panels[ownerId])
       ) &&
       panel.ownerId !== ownerId
     ) {
@@ -1404,7 +1641,7 @@ export function validateDock(
     seen.add(id);
     if (
       layout.containers[id] ||
-      (panel.kind === "widget" && panel.widget === "stack")
+      isLayoutPanel(panel)
     ) {
       if (!layout.containers[id]) {
         reason = "Layout is missing its owned subtree";
@@ -1463,7 +1700,13 @@ export function validateDock(
         tree(cell.node, surface, ownerId, depth + 1),
       );
   };
-  for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const) {
+  if (layout.rootId) {
+    const root = layout.panels[layout.rootId];
+    if (root?.kind !== "widget" || !["app-shell", "desktop-shell"].includes(root.widget)) reason = "Invalid root shell widget";
+    else seen.add(root.id);
+  }
+  if (layout.surfaces.toolbar?.kind !== "stack") reason ??= "Toolbar requires one ordered slot";
+  for (const surface of SURFACES) {
     tree(layout.surfaces[surface], surface);
     if (leafStacks(layout.surfaces[surface]) > policy[surface].maxLeafStacks)
       reason ??= "Surface slot limit exceeded";
@@ -1488,18 +1731,125 @@ export function validateDock(
 /** All structural results pass the same whole-document invariants before commit. */
 export function reduceDock(
   layout: DockLayout,
-  command: Command,
+  input: Command,
   policy: DockPolicy = DEFAULT_DOCK_POLICY,
 ): Result {
-  const result = reduceDockCommand(layout, command, policy);
+  const command = input.type === "createWidget" && input.widget === "app-shell" && !input.slots ? { ...input, slots: APP_SHELL_SEEDS } : input;
+  if (command.type === "batch") {
+    // Validate each step so policy never observes an invalid intermediate graph.
+    let next = layout;
+    for (const action of command.commands) {
+      if (!["configurePanel", "configureWidget", "close", "closeAndRemoveSlot", "move", "float", "dockFloat", "resizeWidget", "presentPanel", "peekVisibility", "addSlot", "visibility"].includes(action.type)) return { ok: false, layout, reason: "Batches accept widget appearance, placement and removal commands only" };
+      const result = reduceDock(next, action, policy);
+      if (!result.ok) return { ...result, layout };
+      next = result.layout;
+    }
+    return { ok: true, layout: next };
+  }
+  if(command.type==='configureProgram'){const panel=layout.panels[command.panelId];if(panel?.kind!=='widget'||panel.widget!=='program'||typeof command.compact!=='boolean')return {ok:false,layout,reason:'Choose a program widget'};if(!command.compact&&panelSurface(layout,panel.id)==='toolbar')return {ok:false,layout,reason:'Move this widget out of the toolbar before removing compact presentation'};return {ok:true,layout:{...layout,panels:{...layout.panels,[panel.id]:{...panel,programCompact:command.compact}}}};}
+  if (command.type === "configureDataView" || command.type === "configureActionButton") {
+    const panel = layout.panels[command.panelId];
+    const expected = command.type === "configureDataView" ? "data-view" : "action-button";
+    if (panel?.kind !== "widget" || panel.widget !== expected) return { ok: false, layout, reason: "Choose a compatible widget instance" };
+    const parsed = command.type === "configureDataView" ? viewConfigurationSchema.safeParse(command.config) : actionButtonSchema.safeParse(command.config);
+    if (!parsed.success) return { ok: false, layout, reason: "Invalid widget configuration" };
+    return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: { ...panel, [command.type === "configureDataView" ? "dataView" : "actionButton"]: parsed.data } } } };
+  }
+  if (command.type === "configureListItem") {
+    const panel = layout.panels[command.panelId], owner = panelSlot(layout, command.panelId)?.target.ownerId;
+    if (!panel || !owner || layout.panels[owner]?.kind !== "widget" || layout.panels[owner].widget !== "widget-list" || !["inline", "tab"].includes(command.mode)) return { ok: false, layout, reason: "Choose an entry in a Widget list" };
+    return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: { ...panel, listMode: command.mode } } } };
+  }
+  if (command.type === "setWidgetTarget") {
+    const panel = layout.panels[command.panelId];
+    if (!panel || !((panel.kind === "widget" && ["navigation", "widget-list"].includes(panel.widget)) || panel.kind === "navigation")) return { ok: false, layout, reason: "Choose a navigation widget" };
+    if (command.reference && (!slotReferenceSchema.safeParse(command.reference).success || !resolveSlotReference(layout, command.reference))) return { ok: false, layout, reason: "Target slot is missing or incompatible" };
+    return { ok: true, layout: { ...layout, panels: { ...layout.panels, [panel.id]: { ...panel, targetRef: command.reference ?? undefined } } } };
+  }
+  if (command.type === "resizeDashboard") {
+    if (!Number.isFinite(command.percent) || command.percent < 40 || command.percent > 100) return { ok: false, layout, reason: "Dashboard width must be between 40 and 100 percent" };
+    return { ok: true, layout: { ...layout, dashboardWidth: Math.round(command.percent) } };
+  }
+  if (command.type === "resizeRow") {
+    let found = false;
+    if (command.height !== undefined && (!Number.isFinite(command.height) || command.height < 160 || command.height > 1600)) return { ok: false, layout, reason: "Row height must be between 160 and 1600 pixels" };
+    const next = mapRoots(layout, root => rewrite(root, node => node.kind !== "grid" ? node : { ...node, cells: node.cells.map(cell => {
+      if (cell.id !== command.cellId) return cell;
+      found = true;
+      return { ...cell, height: command.height === undefined ? undefined : Math.round(command.height) };
+    }) }));
+    return found ? { ok: true, layout: next } : { ok: false, layout, reason: "Row not found" };
+  }
+  let result = reduceDockCommand(layout, command, policy);
   if (!result.ok) return result;
+  if ((command.type === "createWidget" || command.type === "setRootWidget") && command.recipeTarget && !command.slots?.length) return { ok: false, layout, reason: "Definition target is unresolved; include its target Layout in the composition" };
+  if ((command.type === "createWidget" || command.type === "setRootWidget") && command.slots?.length) {
+    let count = 0;
+    const keys = new Map<string, string>();
+    const links: { panelId: string; key: string; slot?: number }[] = [];
+    const register = (id: string, key?: string, target?: { key: string; slot?: number }) => {
+      if (key) { if (keys.has(key)) throw new Error(`Duplicate definition key: ${key}`); keys.set(key, id); }
+      if (target) links.push({ panelId: id, ...target });
+    };
+    const check = (slots: import("./widget-definitions").WidgetSeed[][], depth = 0): boolean => depth <= 12 && slots.length <= 32 && slots.every(slot => slot.length <= 32 && slot.every(seed => ++count <= 128 && (!seed.slots || check(seed.slots, depth + 1))));
+    if (!check(command.slots)) return { ok: false, layout, reason: "Slot defaults exceed the nesting or widget limit" };
+    try {
+      register(result.panelId ?? result.layout.rootId!, command.recipeKey ?? "root", command.recipeTarget);
+      const apply = (current: DockLayout, ownerId: string, slots: import("./widget-definitions").WidgetSeed[][]): Result => {
+        if (!isLayoutPanel(current.panels[ownerId])) return { ok: false, layout, reason: "Slot defaults require a Layout widget" };
+        const removed = descendants(current, ownerId), panels = { ...current.panels }, containers = { ...current.containers };
+        for (const id of removed) { delete panels[id]; delete containers[id]; }
+        const cells = slots.map(() => ({ id: uid("cell"), node: emptySlot() }));
+        current = { ...current, panels, containers: { ...containers, [ownerId]: { kind: "grid", id: uid("grid"), cells } } };
+        for (let i = 0; i < slots.length; i++) for (const seed of slots[i]) {
+          const created = reduceDock(current, { type: "createWidget", widget: seed.widget, defaults: seed.defaults, target: { surface: hostSurface(current, ownerId) ?? "dashboard", ownerId, nodeId: cells[i].node.id, intent: "tab" } }, policy);
+          if (!created.ok) return created;
+          current = created.layout; register(created.panelId!, seed.key, seed.targetRef);
+          if (seed.slots?.length) { const nested = apply(current, created.panelId!, seed.slots); if (!nested.ok) return nested; current = nested.layout; }
+        }
+        // A nested app shell uses the same graph with side-by-side named slots.
+        const ownedRoot = current.containers[ownerId];
+        if (current.panels[ownerId].kind === "widget" && current.panels[ownerId].widget === "app-shell" && ownedRoot.kind === "grid" && ownedRoot.cells.length === 2) current = { ...current, containers: { ...current.containers, [ownerId]: { kind: "split", id: uid("split"), axis: "horizontal", ratio: 0.3, first: ownedRoot.cells[0].node, second: ownedRoot.cells[1].node } } };
+        return { ok: true, layout: current };
+      };
+      let current = result.layout;
+      if (command.type === "setRootWidget") {
+        if (command.slots.length > 4) throw new Error("Shells have four named surfaces");
+        for (const [i, slot] of command.slots.entries()) for (const seed of slot) {
+          const surface = (["sidebar", "main", "bottom", "dashboard"] as const)[i];
+          const child = reduceDock(current, { type: "createWidget", widget: seed.widget, defaults: seed.defaults, target: { surface, intent: surface === "dashboard" ? "append" : "tab" } }, policy);
+          if (!child.ok) return { ...child, layout };
+          current = child.layout; register(child.panelId!, seed.key, seed.targetRef);
+          if (seed.slots?.length) { const nested = apply(current, child.panelId!, seed.slots); if (!nested.ok) return { ...nested, layout }; current = nested.layout; }
+        }
+      } else {
+        const composed = apply(current, result.panelId!, command.slots);
+        if (!composed.ok) return { ...composed, layout }; current = composed.layout;
+      }
+      for (const link of links) {
+        const ownerId = keys.get(link.key); if (!ownerId) throw new Error(`Missing definition target: ${link.key}`);
+        const slots: { node: Stack; surface: Surface }[] = [];
+        if (ownerId === current.rootId) for (const surface of ["sidebar", "main", "bottom", "dashboard"] as const) visitNode(current.surfaces[surface], node => { if (node.kind === "stack") slots.push({ node, surface }); });
+        else visitNode(current.containers[ownerId] ?? null, node => { if (node.kind === "stack") slots.push({ node, surface: hostSurface(current, ownerId) ?? "dashboard" }); });
+        const slot = slots[link.slot ?? 0]; if (!slot) throw new Error(`Target has no compatible slot: ${link.key}`);
+        const bound = reduceDock(current, { type: "setWidgetTarget", panelId: link.panelId, reference: { surface: slot.surface, nodeId: slot.node.id, ownerId: ownerId === current.rootId ? undefined : ownerId } }, policy);
+        if (!bound.ok) return { ...bound, layout }; current = bound.layout;
+      }
+      if (command.definitionSnapshot) {
+        const panels = { ...current.panels };
+        for (const [id, panel] of Object.entries(panels)) if (!layout.panels[id] && id !== result.panelId) panels[id] = { ...panel, compositionOrigin: { assetId: command.definitionSnapshot.assetId, revision: command.definitionSnapshot.revision, key: [...keys].find(([, value]) => value === id)?.[0] } };
+        current = { ...current, panels };
+      }
+      result = { ...result, layout: current };
+    } catch (error) { return { ok: false, layout, reason: String(error) }; }
+  }
   const reason = validateDock(result.layout, policy);
   return reason ? { ok: false, layout, reason } : result;
 }
 
 function rootLocation(layout: DockLayout, nodeId: string): Target | null {
   let result: Target | null = null;
-  for (const surface of ["main", "dashboard", "sidebar", "bottom"] as const)
+  for (const surface of SURFACES)
     visitNode(layout.surfaces[surface], (node) => {
       if (node.id === nodeId) result = { surface, intent: "tab", nodeId };
     });
@@ -1613,11 +1963,11 @@ function migrateAssetReferences(raw: Record<string, any>): Record<string, any> {
 /** Convert saved v1–v4 docks and legacy asset terminology without touching authored data. */
 export function migrateDock(
   raw: unknown,
-  widgets: WidgetId[] = ["weather", "clock", "stack", "capabilities"],
+  widgets: WidgetId[] = ["clock", "action-button"],
   policy: DockPolicy = DEFAULT_DOCK_POLICY,
 ): DockLayout {
   if (!raw || typeof raw !== "object") return createDockLayout(widgets);
-  const value = migrateAssetReferences(raw as Record<string, any>);
+  let value = migrateAssetReferences(raw as Record<string, any>);
   const dockedWidgets: WidgetId[] =
     value.version >= 2
       ? []
@@ -1630,7 +1980,7 @@ export function migrateDock(
           )
           .filter(isWidget);
   const base = createDockLayout([...new Set([...widgets, ...dockedWidgets])]);
-  if (![2, 3, 4].includes(value.version)) {
+  if (![2, 3, 4, 5].includes(value.version)) {
     for (const surface of ["sidebar", "bottom"] as const)
       for (const old of Array.isArray(value[surface]) ? value[surface] : []) {
         const panel =
@@ -1660,6 +2010,7 @@ export function migrateDock(
         )
       )
         panel.size = value.widgetSizes[panel.widget];
+    base.dashboardWidth = Number.isFinite(value.dashboardWidth) ? Math.max(40, Math.min(100, value.dashboardWidth)) : 100;
     base.sidebarWidth = Number.isFinite(value.sidebarWidth)
       ? Math.max(220, Math.min(520, value.sidebarWidth))
       : 310;
@@ -1670,6 +2021,7 @@ export function migrateDock(
     return base;
   }
   const panels: Record<string, Panel> = {
+    ...(value.rootId && value.panels?.[value.rootId] ? { [value.rootId]: value.panels[value.rootId] } : {}),
     [HOME_ID]: base.panels[HOME_ID],
     [BROWSER_ID]: base.panels[BROWSER_ID],
     [NAVIGATION_ID]: base.panels[NAVIGATION_ID],
@@ -1677,9 +2029,20 @@ export function migrateDock(
   for (const [id, panel] of Object.entries(value.panels ?? {}))
     if (panel && typeof panel === "object" && (panel as Panel).id === id) {
       const typed = panel as Panel;
-      if (typed.kind === "widget" && isWidget(typed.widget))
+      const appearance: PanelAppearance = {
+        contentSizing: ["fill", "scroll", "clip"].includes(typed.contentSizing ?? "") ? typed.contentSizing : undefined,
+        displayName: typeof typed.displayName === "string" ? typed.displayName.trim().slice(0, 120) || undefined : undefined,
+        hideDisplayName: typed.hideDisplayName === true,
+        flippable: typeof typed.flippable === "boolean" ? typed.flippable : undefined,
+        chrome: ["default", "compact", "seamless"].includes(typed.chrome ?? "") ? typed.chrome : undefined,
+      };
+      if(typed.kind==='navigation')panels[id]={...typed,tags:['navigation'],navigation:{...(typed.navigation?.areasInitialized?{areasInitialized:true}:{}),filter:normalizeNavigation(typed.navigation?.filter),presentation:['list','tree','compact'].includes(typed.navigation?.presentation??'')?typed.navigation!.presentation:'list',...(typeof typed.navigation?.selectedAssetId==='string'?{selectedAssetId:typed.navigation.selectedAssetId}:{})}};
+      else if (typed.kind === "widget" && isWidget(typed.widget))
         panels[id] = {
           ...typed,
+          ...appearance,
+          definitionSnapshot: definitionSnapshotSchema.safeParse(typed.definitionSnapshot).data,
+          surface: widgetDefaultsSchema.shape.surface.safeParse(typed.surface).data,
           size: ["compact", "standard", "wide"].includes(typed.size)
             ? typed.size
             : "standard",
@@ -1689,7 +2052,12 @@ export function migrateDock(
             ["blue", "violet", "coral", "mint", "slate"].includes(typed.tone)
               ? typed.tone
               : undefined,
-          stackMode: typed.stackMode === "carousel" ? "carousel" : "tabs",
+          background: /^#[0-9a-fA-F]{6}$/.test(typed.background ?? "") ? typed.background : undefined,
+          childWidget: typed.childWidget && isWidget(typed.childWidget) ? typed.childWidget : undefined,
+          stackMode: ["carousel", "sidebar"].includes(typed.stackMode ?? "") ? typed.stackMode : "tabs",
+          browser: ["web-browser", "browser-tab"].includes(typed.widget) ? (() => {
+            try { return browserConfiguration(typed.browser); } catch { return undefined; }
+          })() : undefined,
         };
       else if (
         (typed.kind === "asset" ||
@@ -1699,15 +2067,31 @@ export function migrateDock(
       )
         panels[id] = {
           ...typed,
+          ...appearance,
           tags: [typed.kind === "asset" ? "view" : "widget"],
         };
       else if (
         (typed.kind === "contribution" || typed.kind === "command-output") &&
         typeof typed.definitionId === "string"
       )
-        panels[id] = { ...typed, tags: ["widget", "view"] };
+        panels[id] = { ...typed, ...appearance, tags: ["widget", "view"] };
     }
-  const seen = new Set<string>();
+  value = { ...value, containers: { ...value.containers } };
+  for (const panel of Object.values(panels)) {
+    if (panel.kind !== "widget" || panel.widget !== "web-browser" || value.containers[panel.id]) continue;
+    panel.childWidget ??= "browser-tab";
+    const config = panel.browser ?? defaultBrowserConfiguration();
+    const children = config.tabs.map(tab => {
+      let id = `${panel.id}:browser:${tab.id}`;
+      if (panels[id]) id = uid("browser-tab");
+      panels[id] = { id, kind: "widget", widget: "browser-tab", size: "standard", chrome: "seamless", stackMode: "tabs", hideDisplayName: false, tags: ["widget"], browser: { tabs: [tab], activeTab: tab.id } };
+      return id;
+    });
+    value.containers[panel.id] = { kind: "stack", id: uid("stack"), tabs: children, active: children[config.tabs.findIndex(tab => tab.id === config.activeTab)] ?? children[0], keepEmpty: true };
+  }
+  const rootId = typeof value.rootId === "string" && panels[value.rootId]?.kind === "widget" && ["app-shell", "desktop-shell"].includes((panels[value.rootId] as Extract<Panel, {kind:"widget"}>).widget) ? value.rootId : ROOT_ID;
+  panels[rootId] ??= base.panels[ROOT_ID];
+  const seen = new Set<string>([rootId]);
   const nodeIds = new Set<string>();
   const displaced: string[] = [];
   const containers: Record<string, Node> = {};
@@ -1751,22 +2135,23 @@ export function migrateDock(
         const panel = panels[panelId];
         if (
           value.containers?.[panelId] ||
-          (panel.kind === "widget" && panel.widget === "stack")
+          isLayoutPanel(panel)
         )
           containers[panelId] =
             clean(value.containers?.[panelId], surface, depth + 1, panelId) ??
             emptySlot();
         return true;
       });
-      return tabs.length || node.keepEmpty === true
+      return tabs.length || node.keepEmpty === true || node.autoClose === false
         ? {
             kind: "stack",
             id,
             tabs,
             active: tabs.includes(node.active) ? node.active : (tabs[0] ?? ""),
             keepEmpty: node.keepEmpty === true || surface === "dashboard",
+            ...(typeof node.autoClose === "boolean" ? { autoClose: node.autoClose } : {}),
             presentation:
-              node.presentation === "carousel" ? "carousel" : "tabs",
+              node.presentation === "carousel" ? "carousel" : node.presentation === "plain" || !node.presentation && surface === "sidebar" ? "plain" : "tabs",
             ...(typeof node.slotId === "string" ? { slotId: node.slotId } : {}),
             ...(Array.isArray(node.allowedDefinitions)
               ? {
@@ -1801,6 +2186,7 @@ export function migrateDock(
         cells: node.cells
           .map((cell: any) => ({
             id: cell.id,
+            height: Number.isFinite(cell.height) ? Math.max(160, Math.min(1600, cell.height)) : undefined,
             node: clean(cell.node, surface, depth + 1, ownerId),
           }))
           .filter((cell: any) => typeof cell.id === "string" && cell.node),
@@ -1808,14 +2194,17 @@ export function migrateDock(
     return null;
   };
   const surfaces = Object.fromEntries(
-    (["main", "dashboard", "sidebar", "bottom"] as const).map((surface) => [
+    (SURFACES).map((surface) => [
       surface,
       clean(value.surfaces?.[surface], surface),
     ]),
   ) as DockLayout["surfaces"];
+  const toolbarTabs: string[] = [];
+  visitNode(surfaces.toolbar, node => { if (node.kind === "stack") toolbarTabs.push(...node.tabs); });
+  surfaces.toolbar = { kind: "stack", id: surfaces.toolbar?.id ?? (nodeIds.has("stack:toolbar") ? uid("stack") : "stack:toolbar"), tabs: toolbarTabs, active: surfaces.toolbar?.kind === "stack" && toolbarTabs.includes(surfaces.toolbar.active) ? surfaces.toolbar.active : toolbarTabs[0] ?? "", keepEmpty: true };
   // Older layouts could split every surface without a leaf limit. Merge excess
   // leaves into the first stack in traversal order, retaining tab order and IDs.
-  for (const surface of ["main", "sidebar", "bottom"] as const) {
+  for (const surface of ["main", "sidebar", "bottom", "toolbar"] as const) {
     const root = surfaces[surface];
     const leaves: Stack[] = [];
     visitNode(root, (node) => {
@@ -1889,7 +2278,7 @@ export function migrateDock(
   }
   if (!surfaces.dashboard)
     surfaces.dashboard = { kind: "grid", id: "grid:dashboard", cells: [] };
-  if (value.version !== 4 && surfaces.dashboard.kind === "grid")
+  if (value.version < 4 && surfaces.dashboard.kind === "grid")
     surfaces.dashboard = {
       ...surfaces.dashboard,
       cells: bentoRows(surfaces.dashboard.cells),
@@ -1908,9 +2297,12 @@ export function migrateDock(
     floating[id] = {
       x: Math.max(0, position.x),
       y: Math.max(0, position.y),
-      width: 420,
-      height: 360,
-      returnTo: ["main", "dashboard", "sidebar", "bottom"].includes(
+      width: Number.isFinite(position.width) ? Math.max(220, Math.min(4096, position.width)) : 420,
+      height: Number.isFinite(position.height) ? Math.max(panels[id].kind === "widget" ? WIDGET_PLACEMENT[panels[id].widget].window?.minHeight ?? 160 : 160, Math.min(4096, position.height)) : 360,
+      presentation: position.presentation === "peek" ? "peek" : undefined,
+      edge: position.presentation === "peek" && ["top", "bottom", "left", "right"].includes(position.edge!) ? position.edge : undefined,
+      hidden: position.hidden === true || undefined,
+      returnTo: SURFACES.includes(
         position.returnTo,
       )
         ? position.returnTo
@@ -1921,7 +2313,7 @@ export function migrateDock(
     seen.add(id);
     if (
       value.containers?.[id] ||
-      (panels[id].kind === "widget" && panels[id].widget === "stack")
+      isLayoutPanel(panels[id])
     )
       containers[id] =
         clean(
@@ -1957,15 +2349,17 @@ export function migrateDock(
         ? { surface, intent: "append" }
         : { surface, intent: "tab", nodeId: (firstStack as Stack | null)?.id };
     surfaces[surface] = insert(surfaces[surface], id, target);
-    if (panel.kind === "widget" && panel.widget === "stack")
+    if (isLayoutPanel(panel))
       containers[id] ??= emptySlot();
     seen.add(id);
   }
   let migrated: DockLayout = {
-    version: 4,
+    version: 5,
+    rootId,
     panels,
     surfaces,
     containers,
+    dashboardWidth: Number.isFinite(value.dashboardWidth) ? Math.max(40, Math.min(100, value.dashboardWidth)) : 100,
     sidebarWidth: Number.isFinite(value.sidebarWidth)
       ? Math.max(220, Math.min(520, value.sidebarWidth))
       : 310,
@@ -1986,6 +2380,20 @@ export function migrateDock(
     sidebarSide: value.sidebarSide === "right" ? "right" : "left",
     floating,
   };
+  // Pins previously projected a second UI for every action. Consume only explicit
+  // pins once, moving the same identity into its real destination.
+  if ((value.version ?? 0) < 5) for (const panel of Object.values(migrated.panels)) {
+    if (panel.kind !== "widget" || panel.widget !== "action-button") continue;
+    const pinned = panel.actionButton?.pinned === true;
+    if (panel.actionButton) {
+      const { pinned: _, ...config } = panel.actionButton;
+      migrated.panels[panel.id] = { ...panel, actionButton: config };
+    }
+    if (pinned) {
+      const moved = reduceDock(migrated, { type: "move", panelId: panel.id, target: { surface: "toolbar", intent: "append" } }, policy);
+      if (moved.ok) migrated = moved.layout;
+    }
+  }
   // v2 predates the new starters. The v3 document prevents adding them again if removed.
   if (value.version === 2) {
     for (const widget of ["weather", "clock", "stack"] as const) {
@@ -2008,4 +2416,17 @@ export function migrateDock(
     }
   }
   return migrated;
+}
+
+export function resolveSlotReference(layout: DockLayout, ref: SlotReference): Stack | undefined {
+  if (!slotReferenceSchema.safeParse(ref).success) return;
+  const root = ref.ownerId ? layout.containers[ref.ownerId] : layout.surfaces[ref.surface];
+  let result: Stack | undefined;
+  visitNode(root ?? null, node => { if (node.id === ref.nodeId && node.kind === "stack") result = node; });
+  return result;
+}
+
+/** Navigation owns ordinary widget areas under the same dock tree and policy. */
+export function isNavigationPanel(panel: Panel | undefined): boolean {
+  return panel?.kind === "navigation" || (panel?.kind === "widget" && panel.widget === "navigation");
 }

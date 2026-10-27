@@ -2,6 +2,7 @@
 export class WorkerClient {
   private worker: Worker;
   private sequence = 0;
+  private objectUrl: string;
   private disposed = false;
   private pending = new Map<
     number,
@@ -15,8 +16,10 @@ export class WorkerClient {
     const url = URL.createObjectURL(
       new Blob([source], { type: "text/javascript" }),
     );
+    this.objectUrl = url;
     this.worker = new Worker(url, { type: "module" });
-    URL.revokeObjectURL(url);
+    // Bun resolves blob worker entrypoints asynchronously. Keep the URL alive
+    // until disposal, matching the worker's owner instead of browser load timing.
     this.worker.onmessage = (event) => {
       const call = this.pending.get(event.data.id);
       if (!call) return;
@@ -44,6 +47,7 @@ export class WorkerClient {
   dispose(error = new Error("Worker session closed")) {
     this.disposed = true;
     this.worker.terminate();
+    URL.revokeObjectURL(this.objectUrl);
     for (const call of this.pending.values()) {
       clearTimeout(call.timer);
       call.reject(error);

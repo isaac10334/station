@@ -16,11 +16,11 @@ export function WidgetRemovalActions({
   const slot = panelSlot(layout, panelId);
   const eligible = slot?.node.tabs.length === 1;
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-0.5 border-t border-line-2 pt-2">
       <Button
         size="sm"
         variant="ghost"
-        className="widget-remove"
+        className="w-full justify-start text-fg-3 hover:text-danger"
         onClick={() => command({ type: "close", panelId })}
       >
         <X size={14} />
@@ -36,7 +36,7 @@ export function WidgetRemovalActions({
         <Button
           size="sm"
           variant="ghost"
-          className="widget-remove"
+          className="w-full justify-start text-fg-3 hover:text-danger"
           disabled={!eligible}
           onClick={() => command({ type: "closeAndRemoveSlot", panelId })}
         >

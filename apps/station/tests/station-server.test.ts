@@ -14,6 +14,14 @@ const api = createStationApi({
   worker: join(root, "worker.js"),
 });
 const origin = "http://127.0.0.1:43157";
+test("a local process cannot authorize a Component build merely by spoofing Origin", async () => {
+  const guarded = createStationApi({ artifactDir: root, sandboxConfig: join(root, "missing.json"), translator: join(root, "translator.wasm") }, "root-secret");
+  const request = (headers: Record<string, string>) => new Request(`${origin}/api/component/build`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", ...headers }, body: "{}" });
+  expect((await guarded(request({}))).status).toBe(403);
+  expect((await guarded(request({ "x-station-app": "wrong" }))).status).toBe(403);
+  expect((await guarded(request({ "x-station-app": "root-secret" }))).status).not.toBe(403);
+  await guarded.dispose();
+});
 
 test("desktop API rejects opaque and cross-site callers before effects", async () => {
   for (const headers of [

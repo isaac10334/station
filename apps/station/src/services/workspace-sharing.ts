@@ -1,4 +1,4 @@
-import type { Store } from "../core/model";
+import type { Store } from "../features/workspace/application/store";
 import {
   sharedSource,
   sharedSourceSchema,

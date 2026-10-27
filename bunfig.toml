@@ -1,0 +1,4 @@
+# Bun 1.3.14 isolated frozen installs cannot fetch relative transitive tarball
+# overrides from a fresh cache. Hoisted installs keep the bootstrap bridge portable.
+[install]
+linker = "hoisted"

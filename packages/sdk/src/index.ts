@@ -1,4 +1,7 @@
 import type { Station, Json, Theme, EditorSession, CapabilityHandle } from "@station/capabilities/guest";
+export type { AssetMetadata } from "@station/capabilities/guest";
+/** Discoverable metadata contract; the current host still decides availability and grants. */
+export const assetMetadata = Object.freeze({ id: "station:assets/metadata", version: "1.0.0" });
 export type { Station, Json, Theme, EditorSession, CapabilityHandle } from "@station/capabilities/guest";
 
 /** Connect only to the bootstrap port supplied to this exact guest execution. */

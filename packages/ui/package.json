@@ -34,7 +34,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "bun ../../tooling/staged-typescript-build.ts tsconfig.build.json"
   },
   "dependencies": {
     "@station/capabilities": "workspace:*",

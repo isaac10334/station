@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { validateSource, type BuiltArtifact } from "../src/core/build-contract";
-import { createStore, hasCurrentArtifact } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
+import { hasCurrentArtifact } from "../src/core/asset-state";
 
 test("build source accepts the asset project but rejects escaping paths", () => {
   const store = createStore({ getItem: () => null, setItem: () => {} });

@@ -1,8 +1,9 @@
+import { builtinIconAsset } from "../core/builtin-icons";
 import { useEffect, useRef } from "react";
-import type { Workspace } from "../core/model";
+import type { Workspace } from "../core/workspace-state";
 import { deps } from "../composition";
 import { setIconOverrides } from "@station/ui/theme-icons";
-import { svgIconUrl } from "../services/svg-icons";
+import { resolvedSvgIcon } from "../services/svg-icons";
 import { assetFiles } from "../core/source-project";
 import {
   parseTheme,
@@ -66,10 +67,10 @@ export function ThemeAssets({ workspace }: { workspace: Workspace }) {
     )) {
       const source = workspace.assets.find(
         (asset) => asset.id === reference.assetId,
-      );
+      ) ?? builtinIconAsset(reference.assetId);
       try {
         if (source)
-          icons[name] = svgIconUrl(assetFiles(source)[reference.path]!);
+          icons[name] = resolvedSvgIcon(assetFiles(source)[reference.path]!);
       } catch {
         /* Invalid images retain their trusted built-in glyph. */
       }

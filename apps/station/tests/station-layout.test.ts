@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createDockLayout, reduceDock, migrateDock, descendants, panelSlot, findNode, validateDock, type DockLayout, type Command } from "../src/core/docking";
-import { createStore } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
 
 function apply(layout: DockLayout, command: Command) {
   const result = reduceDock(layout, command);
@@ -8,15 +8,36 @@ function apply(layout: DockLayout, command: Command) {
   return result.layout;
 }
 const dashboard = { surface: "dashboard", intent: "append" } as const;
+test("instance display names and visibility persist, undo, and preserve Layout children", () => {
+  const values = new Map<string, string>();
+  const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+  const store = createStore(storage);
+  store.dispatchDock({ type: "createWidget", widget: "stack", id: "named-layout", target: dashboard });
+  store.dispatchDock({ type: "createWidget", widget: "clock", id: "named-child", target: { ...dashboard, ownerId: "named-layout" } });
+  const before = store.active().dock;
+  store.dispatchDock({ type: "configureWidget", panelId: "named-layout", displayName: "  My views  ", hideDisplayName: true });
+  expect(store.active().dock.panels["named-layout"]).toMatchObject({ displayName: "My views", hideDisplayName: true });
+  expect(store.active().dock.containers).toBe(before.containers);
+  const restored = createStore(storage).active().dock;
+  expect(restored.panels["named-layout"]).toMatchObject({ displayName: "My views", hideDisplayName: true });
+  expect(descendants(restored, "named-layout")).toEqual(["named-child"]);
+  store.undoLayout();
+  expect(store.active().dock.panels["named-layout"]).toEqual(migrateDock(before).panels["named-layout"]);
+  store.redoLayout();
+  expect(store.active().dock.panels["named-layout"]).toMatchObject({ displayName: "My views", hideDisplayName: true });
+  store.dispatchDock({ type: "configureWidget", panelId: "named-layout", displayName: "", hideDisplayName: false });
+  expect(store.active().dock.panels["named-layout"]).toMatchObject({ displayName: undefined, hideDisplayName: false });
+  expect(reduceDock(restored, { type: "configureWidget", panelId: "named-layout", displayName: "x".repeat(121) }).ok).toBe(false);
+});
 test("side dock width migrates, clamps, persists, and supports layout undo", () => {
   const storage = new Map<string, string>();
   const backing = { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, value); } };
   const store = createStore(backing);
-  expect(store.active().dock.sidebarWidth).toBe(310);
+  expect(store.active().dock.sidebarWidth).toBe(244);
   store.dispatchDock({ type: "resizeSidebar", width: 412 });
   expect(createStore(backing).active().dock.sidebarWidth).toBe(412);
   store.undoLayout();
-  expect(store.active().dock.sidebarWidth).toBe(310);
+  expect(store.active().dock.sidebarWidth).toBe(244);
   store.redoLayout();
   expect(store.active().dock.sidebarWidth).toBe(412);
   expect(apply(store.active().dock, { type: "resizeSidebar", width: 999 }).sidebarWidth).toBe(520);
@@ -185,4 +206,53 @@ test("older layouts with the browser elsewhere recover a reusable empty bottom s
   const restored = migrateDock(moved);
   expect(restored.surfaces.bottom).toMatchObject({ kind: "stack", tabs: [], keepEmpty: true });
   expect(validateDock(restored)).toBeNull();
+});
+
+
+test("floating resize rejects invalid geometry, persists size, and undoes atomically", () => {
+  const values = new Map<string, string>();
+  const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+  const store = createStore(storage);
+  store.dispatchDock({ type: "createWidget", widget: "clock", id: "sized", target: dashboard });
+  store.dispatchDock({ type: "float", panelId: "sized", x: 90, y: 100 });
+  const before = store.active().dock;
+  store.dispatchDock({ type: "resizeFloat", panelId: "sized", width: 640, height: 480 });
+  expect(store.active().dock.floating.sized).toMatchObject({ width: 640, height: 480, x: 90, y: 100 });
+  expect(createStore(storage).active().dock.floating.sized).toMatchObject({ width: 640, height: 480 });
+  store.undoLayout();
+  expect(store.active().dock.floating.sized).toEqual(before.floating.sized);
+  store.redoLayout();
+  expect(store.active().dock.floating.sized).toMatchObject({ width: 640, height: 480 });
+  expect(reduceDock(before, { type: "resizeFloat", panelId: "sized", width: NaN, height: 480 }).ok).toBe(false);
+  expect(reduceDock(before, { type: "resizeFloat", panelId: "missing", width: 640, height: 480 }).ok).toBe(false);
+  expect(apply(before, { type: "resizeFloat", panelId: "sized", width: 10, height: 9000 }).floating.sized).toMatchObject({ width: 220, height: 4096 });
+});
+
+
+test("a side peek owns one panel, persists, toggles and docks without moving its peers", () => {
+  const values = new Map<string, string>();
+  const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+  const store = createStore(storage);
+  store.dispatchDock({ type: "createWidget", widget: "clock", id: "peek-clock", target: dashboard });
+  store.dispatchDock({ type: "createWidget", widget: "weather", id: "peer", target: dashboard });
+  const peerSlot = panelSlot(store.active().dock, "peer")!.node.id;
+  store.dispatchDock({ type: "presentPanel", panelId: "peek-clock", mode: "peek", edge: "left" });
+  expect(panelSlot(store.active().dock, "peek-clock")).toBeNull();
+  expect(panelSlot(store.active().dock, "peer")!.node.id).toBe(peerSlot);
+  expect(store.active().dock.floating["peek-clock"]).toMatchObject({ presentation: "peek", edge: "left", hidden: false });
+  expect(createStore(storage).active().dock.floating["peek-clock"]).toMatchObject({ presentation: "peek", edge: "left" });
+  store.dispatchDock({ type: "peekVisibility", panelId: "peek-clock", hidden: true });
+  expect(store.active().dock.panels["peek-clock"]).toBeDefined();
+  store.dispatchDock({ type: "dockFloat", panelId: "peek-clock" });
+  expect(store.active().dock.floating["peek-clock"]).toBeUndefined();
+  expect(panelSlot(store.active().dock, "peek-clock")).not.toBeNull();
+});
+
+test("the side dock can stack rows of existing widgets around protected navigation", () => {
+  const store = createStore({ getItem: () => null, setItem: () => {} });
+  const result = store.dispatchDock({ type: "batch", commands: [{ type: "addSlot", surface: "sidebar" }, { type: "visibility", surface: "sidebar", hidden: false }] });
+  expect(result.ok).toBe(true);
+  expect(store.active().dock.surfaces.sidebar?.kind).toBe("grid");
+  expect(store.active().dock.panels["workspace-navigation"]).toBeDefined();
+  expect(validateDock(store.active().dock)).toBeNull();
 });

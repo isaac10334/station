@@ -1,4 +1,4 @@
-import { Sandbox } from "@vercel/sandbox";
+import { selectComponentCompiler, type ComponentCompiler } from "./component-compilers";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { createRequire } from "node:module";
@@ -10,6 +10,7 @@ import {
   sha256,
   sourceSha256,
   witSha256,
+  validateSource,
   type BuildSource,
   type BuiltArtifact,
 } from "../src/core/build-contract";
@@ -41,86 +42,15 @@ function translator(path: string): Promise<Translator> {
 export async function buildComponent(
   source: BuildSource,
   paths = defaultPaths(),
+  signal?: AbortSignal,
+  compiler: ComponentCompiler = selectComponentCompiler(),
 ): Promise<{ metadata: BuiltArtifact; bytes: Uint8Array }> {
-  const configFile = Bun.file(paths.sandboxConfig);
-  if (!(await configFile.exists()))
-    throw new BuildFailure(
-      "Sandbox toolchain is not provisioned. Run bun run setup:sandbox.",
-      503,
-    );
-  const { teamId, projectId, snapshotId, toolchain } =
-    (await configFile.json()) as Record<string, string>;
-  const token = process.env.VERCEL_AUTH_TOKEN;
-  if (!token && !process.env.VERCEL_OIDC_TOKEN)
-    throw new BuildFailure(
-      "Vercel Sandbox authentication is missing. Run vercel link and vercel env pull.",
-      503,
-    );
+  signal?.throwIfAborted();
+  source = validateSource(source);
+  const compiled = await compiler.compile(source, paths, signal);
+  signal?.throwIfAborted(); const bytes = compiled.bytes, toolchain = compiled.toolchain;
+  if (!bytes.length || bytes.length > MAX_ARTIFACT_BYTES) throw new BuildFailure("Compiler output exceeds the artifact limit", 422);
   const sourceHash = await sourceSha256(source.files);
-  const sandbox = await Sandbox.create({
-    ...(token ? { token, teamId, projectId } : {}),
-    source: { type: "snapshot", snapshotId },
-    persistent: false,
-    timeout: 10 * 60_000,
-    networkPolicy: "deny-all",
-    tags: { purpose: "station-build", asset: source.id },
-  }).catch((error) => {
-    if (
-      error instanceof Error &&
-      /Oidc|credentials|authentication/i.test(`${error.name} ${error.message}`)
-    )
-      throw new BuildFailure(
-        "Vercel authentication is unavailable or expired. Refresh your local Vercel login/OIDC credentials and retry.",
-        503,
-      );
-    throw error;
-  });
-  try {
-    await sandbox.mkDir("/vercel/unit");
-    await sandbox.mkDir("/vercel/unit/src");
-    await sandbox.mkDir("/vercel/unit/wit");
-    await sandbox.mkDir("/vercel/unit/wit/deps");
-    await sandbox.mkDir("/vercel/unit/wit/deps/wasi-clocks");
-    await sandbox.writeFiles(
-      Object.entries(source.files).map(([path, content]) => ({
-        path: `/vercel/unit/${path}`,
-        content: Buffer.from(content),
-      })),
-    );
-    const result = await sandbox.runCommand({
-      cmd: "/vercel/.cargo/bin/cargo",
-      args: [
-        "+nightly-2026-09-08",
-        "build",
-        "--release",
-        "--offline",
-        "--locked",
-        "--target",
-        "wasm32-wasip2",
-        "--manifest-path",
-        "/vercel/unit/Cargo.toml",
-      ],
-      cwd: "/vercel/unit",
-    });
-    if (result.exitCode !== 0) {
-      const diagnostics = (await result.stderr()).slice(-12_000);
-      throw new BuildFailure(`Component build failed:\n${diagnostics}`, 422);
-    }
-    const artifactPath = `target/wasm32-wasip2/release/${source.id.replaceAll("-", "_")}.wasm`;
-    const output = await sandbox.readFileToBuffer({
-      path: artifactPath,
-      cwd: "/vercel/unit",
-    });
-    if (
-      !output ||
-      output.byteLength === 0 ||
-      output.byteLength > MAX_ARTIFACT_BYTES
-    )
-      throw new BuildFailure(
-        "Build did not produce a valid sized Component artifact.",
-        422,
-      );
-    const bytes = new Uint8Array(output);
     if (
       bytes[0] !== 0 ||
       bytes[1] !== 97 ||
@@ -145,6 +75,7 @@ export async function buildComponent(
       );
     }
     const hash = await sha256(bytes);
+    signal?.throwIfAborted();
     const metadata: BuiltArtifact = {
       schemaVersion: 2,
       buildId: crypto.randomUUID(),
@@ -153,12 +84,12 @@ export async function buildComponent(
       sourceSha256: sourceHash,
       sha256: hash,
       bytes: bytes.byteLength,
-      builtBy: "vercel-sandbox",
+      builtBy: compiler.id,
       profile: "component-model-0.3",
       worldDigest: inspected.worldDigest,
       imports: inspected.imports,
       toolchain,
-      snapshotId,
+      snapshotId: compiled.environmentId,
       witSha256: await witSha256(source.files),
       translatorSha256,
     };
@@ -170,9 +101,6 @@ export async function buildComponent(
       { flag: "wx" },
     );
     return { metadata, bytes };
-  } finally {
-    await sandbox.delete();
-  }
 }
 
 export async function readArtifact(

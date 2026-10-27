@@ -1,3 +1,4 @@
+import { useOverlayContainer, useOverlayZIndex, OverlayLayer } from "./overlay-container";
 "use client";
 import { Menu } from "@base-ui/react/menu";
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
@@ -216,8 +217,10 @@ export function DropdownMenuContent({
   container,
   ...rest
 }: DropdownMenuContentProps) {
+  const overlayContainer = useOverlayContainer();
+  const zIndex = useOverlayZIndex("--z-dropdown");
   return (
-    <Menu.Portal container={container}>
+    <Menu.Portal container={container ?? overlayContainer}>
       <Menu.Positioner
         side={side}
         align={align}
@@ -225,9 +228,9 @@ export function DropdownMenuContent({
         alignOffset={alignOffset}
         collisionPadding={collisionPadding}
         anchor={anchor}
-        className="z-(--z-dropdown) outline-none"
+        className="z-(--z-dropdown) outline-none" style={{ zIndex }}
       >
-        <DropdownMenuPopup {...rest} />
+        <OverlayLayer value={zIndex}><DropdownMenuPopup {...rest} /></OverlayLayer>
       </Menu.Positioner>
     </Menu.Portal>
   );
@@ -470,10 +473,12 @@ export type DropdownMenuSubContentProps = DropdownMenuPopupProps & {
 
 /** The submenu surface. Its first row lines up with the row that opened it. */
 export function DropdownMenuSubContent({ sideOffset = 6, alignOffset = -5, container, ...rest }: DropdownMenuSubContentProps) {
+  const overlayContainer = useOverlayContainer();
+  const zIndex = useOverlayZIndex("--z-dropdown");
   return (
-    <Menu.Portal container={container}>
-      <Menu.Positioner side="inline-end" align="start" sideOffset={sideOffset} alignOffset={alignOffset} collisionPadding={8} className="z-(--z-dropdown) outline-none">
-        <DropdownMenuPopup {...rest} />
+    <Menu.Portal container={container ?? overlayContainer}>
+      <Menu.Positioner side="inline-end" align="start" sideOffset={sideOffset} alignOffset={alignOffset} collisionPadding={8} className="z-(--z-dropdown) outline-none" style={{ zIndex }}>
+        <OverlayLayer value={zIndex}><DropdownMenuPopup {...rest} /></OverlayLayer>
       </Menu.Positioner>
     </Menu.Portal>
   );

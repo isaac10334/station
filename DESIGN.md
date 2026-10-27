@@ -25,3 +25,5 @@ Use one clear title in card and widget headers. Do not place a generic uppercase
 The five local paths above are installed. For a catalog skill that is not installed, consult its linked catalog page when relevant; do not claim a local file exists. Treat the skill as design guidance, while the app's contracts and current source remain authoritative.
 
 For registry work, inspect dependency lists and source with the shadcn MCP before adding an item. Use Stealth source where it fits. Keep focus, keyboard, and reduced-motion behavior intact when adapting it. Check 375, 768, 1024, and 1440px for layout changes.
+
+For additional icons, the shadcn @keyline registry is a useful discovery source: `bunx shadcn search @keyline`. Inspect artwork before adding it. Keep product meanings in Station's semantic theme icon system so asset references and overrides continue to work.

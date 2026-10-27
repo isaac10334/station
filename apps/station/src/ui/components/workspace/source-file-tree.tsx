@@ -3,6 +3,7 @@ import { sourceTree, sourceAncestors } from "../../../core/source-tree";
 import { TreeView } from "../ui/tree-view";
 import { IconAction } from "../ui/icon-action";
 import { Plus, Pencil, Trash } from "../../lib/icons";
+import { collectionTree } from '../../collection-adapter';
 
 /** Editor-owned presentation state; source changes are supplied by the editor session. */
 export function SourceFileTree({
@@ -22,7 +23,7 @@ export function SourceFileTree({
   onRename: (path: string) => void;
   onDelete: (path: string) => void;
 }) {
-  const items = useMemo(() => sourceTree(paths), [paths.join("\0")]);
+  const items = useMemo(() => collectionTree({ roots:()=>sourceTree(paths),id:node=>node.id,label:node=>node.label,children:node=>node.children,icon:node=>({kind:'symbol',name:node.children?'Folder':'File'}) }), [paths.join("\0")]);
   const [expanded, setExpanded] = useState(() => sourceAncestors(selected));
   useEffect(() => {
     setExpanded((previous) => [

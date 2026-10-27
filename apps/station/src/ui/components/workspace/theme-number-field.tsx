@@ -1,68 +1,32 @@
-import { useId, useState } from "react";
-import { Input } from "../ui/input";
+import { numberError, SettledInput } from "../ui/settled-input";
 
-/** Keep intermediate typing local; only a valid, settled value changes theme source. */
+/** Spacing/radius keep decimal drafts local until blur or Enter. */
 export function ThemeNumberField({
   label,
   value,
   min,
   max,
   onCommit,
+  disabled,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
   onCommit: (value: number) => void;
+  disabled?: boolean;
 }) {
-  const id = useId();
-  const [draft, setDraft] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const commit = () => {
-    if (draft === null) return;
-    const next = Number(draft);
-    if (!draft.trim() || !Number.isFinite(next) || next < min || next > max) {
-      setError(`Use a number from ${min} to ${max}.`);
-      return;
-    }
-    onCommit(next);
-    setDraft(null);
-    setError("");
-  };
   return (
     <label className="flex flex-col gap-2 text-xs text-fg-2">
-      <span id={`${id}-label`} className="capitalize">{label}</span>
-      <Input
-        type="number"
-        min={min}
-        max={max}
-        value={draft ?? value}
-        aria-invalid={!!error}
-        aria-labelledby={`${id}-label`}
-        aria-describedby={error ? `${id}-error` : undefined}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setError("");
-        }}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            commit();
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            setDraft(null);
-            setError("");
-          }
-        }}
+      <span className="capitalize">{label}</span>
+      <SettledInput
+        disabled={disabled}
+        label={label}
+        value={String(value)}
+        numeric={{ min, max }}
+        validate={(text) => numberError(text, min, max)}
+        onCommit={(text) => onCommit(Number(text))}
       />
-      {error && (
-        <span id={`${id}-error`} role="status" className="text-danger">
-          {error}
-        </span>
-      )}
     </label>
   );
 }

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { createStore, HOST_LOG } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
+import { HOST_LOG } from "../src/core/component-contract";
 import type { BuiltArtifact } from "../src/core/build-contract";
 import {
   BROWSER_ID,
@@ -124,6 +125,7 @@ test("legacy flat docks recognize the renamed browser and explicit empty selecti
 
 test("legacy floating and nested views keep their locations and browser tab references", () => {
   const store = createStore({ getItem: () => null, setItem: () => {} });
+  store.dispatchDock({ type: "createWidget", widget: "stack", target: { surface: "dashboard", intent: "append" } });
   const layoutId = Object.values(store.active().dock.panels).find(
     (panel) => panel.kind === "widget" && panel.widget === "stack",
   )!.id;

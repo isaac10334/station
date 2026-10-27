@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Workspace, Asset } from "../core/model";
+import type { Workspace } from "../core/workspace-state";
+import type { Asset } from "../core/asset-state";
 import type { Panel } from "../core/docking";
 import { DockOwnedLayout, useDockController } from "./docking/react";
 import {
@@ -11,6 +12,7 @@ import { packageRuntime } from "../composition";
 const { contributionBindings } = packageRuntime;
 import { SandboxFrame } from "./sandbox-frame";
 import { useEditorOwner } from "./components/workspace/editor-workspace";
+import { ProgramWidget } from './components/workspace/program-widget';
 
 function BoundEditor({
   asset,
@@ -88,6 +90,7 @@ function ContributionBody({
         </p>
       </div>
     );
+  if(definition.installation.programs?.[definition.contribution.id])return <ProgramWidget panel={panel}/>;
   if (!body && definition.contribution.slots.length)
     return (
       <div className="station-contribution">
@@ -105,7 +108,7 @@ function ContributionBody({
     );
   return (
     <ContributionFrame
-      key={`${definition.installation.revision}:${definition.installation.builds[definition.contribution.id]?.documentHash}:${JSON.stringify(definition.installation.grants)}:${panel.definitionId}`}
+      key={`${definition.installation.installationId ?? definition.installation.revision}:${definition.installation.builds[definition.contribution.id]?.documentHash}:${JSON.stringify(definition.installation.grants)}:${JSON.stringify(definition.installation.metadataTargets)}:${panel.definitionId}`}
       panel={panel}
       workspace={workspace}
     />

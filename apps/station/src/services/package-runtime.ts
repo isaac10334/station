@@ -1,8 +1,12 @@
 import { z } from "zod";
-import type { createComposition } from "../composition";
-import { hasCurrentArtifact, type Workspace } from "../core/model";
+import type { Scope } from "@loop-kit/host";
+import type { RunResult } from "../contracts/component-runtime";
+import { hasCurrentArtifact } from "../core/asset-state";
+import { type Store } from "../features/workspace/application/store";
+import { type Workspace } from "../core/workspace-state";
 import {
   packageMembers,
+  contributionSource,
   parseManifest,
   type PackageInstallation,
   type Contribution,
@@ -10,7 +14,7 @@ import {
 import { assetFiles } from "../core/source-project";
 import { buildWebProject } from "./web-build";
 import { editorSessions } from "./editor-session";
-import { assetCatalog, textDigest, workspaceClock } from "@station/capabilities";
+import { assetCatalog, textDigest, workspaceClock, stationAssetCatalog, loopClock, loopTextDigest } from "@station/capabilities";
 
 import type { GuestBindings } from "./guest-bridge";
 import type { Json } from "@station/sdk";
@@ -24,6 +28,8 @@ import {
   type Node,
 } from "../core/docking";
 import { REQUIRED_GRANTS } from "../core/component-contract";
+import { parseProgramAsset } from '../core/programs';
+import { prepareProgram } from './program-activation';
 
 export const EDITOR_SESSION = "station:editor/session";
 export { installedDefinitions } from "../core/contribution-catalog";
@@ -114,8 +120,15 @@ export function composeContribution(
   return { type: "compose" as const, ownerId: panel.id, panels, root };
 }
 
+/** Minimal application ports; this service never imports the composition root. */
+export interface PackageRuntimeDependencies {
+  taskControl?(): ReturnType<typeof import("../features/commands/application/runtime").createStationControl>;
+  store: Store;
+  openScope(workspaceId: string, name: string): Scope;
+  runPackageCommand(packageId: string, contributionId: string, input: string, signal?: AbortSignal): Promise<RunResult>;
+}
 /** Runtime-local state and effects, supplied by the application's composition root. */
-export function createPackageRuntime(deps: Pick<ReturnType<typeof createComposition>, "store" | "openScope" | "runPackageCommand">) {
+export function createPackageRuntime(deps: PackageRuntimeDependencies) {
 /** Build all members before making an install reviewable. Does not register or execute it. */
 async function prepareInstallation(
   workspace: Workspace,
@@ -126,10 +139,14 @@ async function prepareInstallation(
   if (asset?.kind !== "package") throw new Error("Package source missing");
   const manifest = parseManifest(asset.files["station.json"]!);
   const members = packageMembers(manifest, workspace.assets),
-    builds: PackageInstallation["builds"] = {};
+    builds: PackageInstallation["builds"] = {}, programs:NonNullable<PackageInstallation['programs']>={};
+  for (const contribution of manifest.contributions) contributionSource(contribution, members.find(member => member.id === contribution.assetId)!);
   for (const contribution of manifest.contributions) {
     const member = members.find((asset) => asset.id === contribution.assetId)!;
-    if (contribution.role === "command") {
+    if(contributionSource(contribution, member) === "program") {
+      const draft=parseProgramAsset(assetFiles(member));
+      programs[contribution.id]=await prepareProgram(draft,members,`${manifest.id}/${contribution.id}`,member.revision,signal);
+    } else if (contribution.role === "command") {
       if (member.kind !== "component")
         throw new Error("Commands require Component source");
     } else {
@@ -181,6 +198,7 @@ async function prepareInstallation(
       member.kind === "component" ? { ...member, grants: {} } : member,
     ),
     builds,
+    programs,
     grants: {},
   };
 }
@@ -217,6 +235,7 @@ function contributionBindings(
     contribution.capabilities.includes(id),
   );
   const check = () => {
+    if (installation.authorizationTaskId) deps.taskControl?.().contextForTask(installation.authorizationTaskId);
     const current = deps.store.active();
     if (
       controller.signal.aborted ||
@@ -239,15 +258,39 @@ function contributionBindings(
   const bindings: GuestBindings = {
     grants,
     signal: controller.signal,
-    async acquire(id, version) {
+    async acquire(id, version): ReturnType<GuestBindings["acquire"]> {
       check();
       if (version !== "1.0.0" || !grants.includes(id))
         throw new Error("Capability denied");
       let released = false;
       const live = () => {
         check();
+        if (installation.authorizationTaskId) {
+          const control = deps.taskControl?.();
+          if (!control) throw new Error("Task policy unavailable");
+          control.assertCapability(control.contextForTask(installation.authorizationTaskId), id);
+        }
         if (released) throw new Error("Capability released");
       };
+      if (id === "station:assets/metadata") {
+        const control = deps.taskControl?.();
+        if (!control || !installation.authorizationTaskId) throw new Error("Metadata editing requires a resource-bound task authorization");
+        const context = control.contextForTask(installation.authorizationTaskId);
+        const target = (value: unknown) => {
+          live(); const assetId = z.string().parse(value);
+          if (!installation.metadataTargets?.includes(assetId)) throw new Error("Metadata target is outside this installation");
+          return assetId;
+        };
+        return {
+          methods: {
+            get: (assetId: unknown) => { const response = control.executeFor(context, { method: "asset.metadata.read", params: { assetId: target(assetId) } }); return { ...response.result, version: response.version }; },
+            version: () => { live(); return control.version(); },
+            patch: (assetId: unknown, patch: unknown, version: unknown) => { control.executeFor(context, { method: "asset.metadata", params: { assetId: target(assetId), patch }, version }); },
+          },
+          subscribe: listener => deps.store.subscribe(() => { try { live(); listener({ version: control.version() }); } catch {} }),
+          release: async () => { released = true; },
+        };
+      }
       let editorOwner: Panel | undefined = owner;
       let session = editorSessions.get(ownerId);
       for (
@@ -270,6 +313,10 @@ function contributionBindings(
           methods: {
             files: () => {
               live();
+              if (installation.authorizationTaskId) {
+                const control = deps.taskControl!();
+                return control.executeFor(control.contextForTask(installation.authorizationTaskId), { method: "asset.read", params: { assetId: session.asset.id } }).result.files;
+              }
               const asset = deps.store
                 .active()
                 .assets.find((asset) => asset.id === session.asset.id);
@@ -278,6 +325,11 @@ function contributionBindings(
             },
             edit: (path: unknown, source: unknown) => {
               live();
+              if (installation.authorizationTaskId) {
+                const control = deps.taskControl!(), context = control.contextForTask(installation.authorizationTaskId);
+                const current = deps.store.active().assets.find(a => a.id === session.asset.id)!;
+                control.executeFor(context, { method: "asset.files.patch", version: control.version(), params: { assetId: current.id, expectedAssetRevision: current.revision, patch: { [z.string().parse(path)]: z.string().max(1024 * 1024).parse(source) } } }); return;
+              }
               deps.store.editFile(
                 session.asset.id,
                 z.string().parse(path),
@@ -289,10 +341,19 @@ function contributionBindings(
             },
             remove: (path: unknown) => {
               live();
+              if (installation.authorizationTaskId) {
+                const control = deps.taskControl!(), current = deps.store.active().assets.find(a => a.id === session.asset.id)!;
+                control.executeFor(control.contextForTask(installation.authorizationTaskId), { method: "asset.files.patch", version: control.version(), params: { assetId: current.id, expectedAssetRevision: current.revision, patch: { [z.string().parse(path)]: null } } }); return;
+              }
               deps.store.removeFile(session.asset.id, z.string().parse(path));
             },
             rename: (from: unknown, to: unknown) => {
               live();
+              if (installation.authorizationTaskId) {
+                const control = deps.taskControl!(), current = deps.store.active().assets.find(a => a.id === session.asset.id)!, files = assetFiles(current), source = z.string().parse(from), destination = z.string().parse(to);
+                if (files[destination] !== undefined || files[source] === undefined) throw new Error("Invalid rename");
+                control.executeFor(control.contextForTask(installation.authorizationTaskId), { method: "asset.files.patch", version: control.version(), params: { assetId: current.id, expectedAssetRevision: current.revision, patch: { [source]: null, [destination]: files[source] } } }); return;
+              }
               deps.store.renameFile(
                 session.asset.id,
                 z.string().parse(from),
@@ -332,6 +393,11 @@ function contributionBindings(
             invoke: (definition: unknown, input: unknown) => {
               live();
               const commandId = z.string().parse(definition);
+              if (installation.authorizationTaskId) {
+                // Until a delegated command adapter can intersect every callee effect,
+                // a task-owned package cannot borrow another command's authority.
+                throw new Error("Delegated package command invocation is unavailable; use the scoped Component command");
+              }
               if (!contribution.capabilities.includes(`command:${commandId}`))
                 throw new Error("Command not declared");
               return invokeInstalledCommand(
@@ -349,27 +415,20 @@ function contributionBindings(
           },
         };
       }
-      const capability =
-        id === workspaceClock.id
-          ? workspaceClock
-          : id === textDigest.id
-            ? textDigest
-            : id === assetCatalog.id
-              ? assetCatalog
-              : null;
+      const capability = [workspaceClock, textDigest, assetCatalog, stationAssetCatalog, loopClock, loopTextDigest].find(capability => capability.id === id);
       if (!capability) throw new Error("Unsupported guest contract");
       const handle = await scope.acquire(capability as typeof workspaceClock);
       live();
       const value = handle.value as any;
       const methods: Record<string, (...args: any[]) => unknown> =
-        id === workspaceClock.id
+          id === workspaceClock.id || id === loopClock.id
           ? {
               now: () => {
                 live();
                 return value.now();
               },
             }
-          : id === textDigest.id
+          : id === textDigest.id || id === loopTextDigest.id
             ? {
                 sha256: (text: unknown) => {
                   live();
@@ -379,6 +438,11 @@ function contributionBindings(
             : {
                 list: () => {
                   live();
+                  if (installation.authorizationTaskId) {
+                    const control = deps.taskControl?.();
+                    if (!control) throw new Error("Task policy unavailable");
+                    return control.executeFor(control.contextForTask(installation.authorizationTaskId), { method: "assets.list" }).result;
+                  }
                   return value.list();
                 },
               };

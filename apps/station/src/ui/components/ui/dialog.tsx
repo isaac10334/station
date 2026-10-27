@@ -1,3 +1,4 @@
+import { useOverlayContainer } from "./overlay-container";
 "use client";
 import { observeResize } from "../../lib/observe-resize";
 
@@ -86,6 +87,9 @@ export type DialogContentProps = Omit<BaseDialog.Popup.Props, "className"> & {
   /** Render into this element instead of document.body. The backdrop then covers only the container. */
   container?: BaseDialog.Portal.Props["container"];
   backdropClassName?: string;
+  /** Retain a property editor draft while its popup is closed. */
+  keepMounted?: boolean;
+  viewportClassName?: string;
 };
 
 export function DialogContent({
@@ -94,15 +98,19 @@ export function DialogContent({
   closeLabel = "Close",
   container,
   backdropClassName,
+  keepMounted,
+  viewportClassName,
   className,
   children,
   ref,
   ...rest
 }: DialogContentProps) {
   const ctx = useContext(DialogContext);
-  const contained = container != null;
+  const overlayContainer = useOverlayContainer();
+  const resolvedContainer = container ?? overlayContainer;
+  const contained = resolvedContainer != null;
   return (
-    <BaseDialog.Portal container={container}>
+    <BaseDialog.Portal container={resolvedContainer} keepMounted={keepMounted}>
       <BaseDialog.Backdrop
         className={cn(
           contained ? "absolute" : "fixed",
@@ -118,6 +126,7 @@ export function DialogContent({
           "inset-0 z-(--z-dialog) flex items-center justify-center p-4",
           // On a phone the dialog sits at the bottom, under the thumb.
           "max-sm:items-end max-sm:p-2 max-sm:pb-[max(8px,env(safe-area-inset-bottom))]",
+          viewportClassName,
         )}
       >
         <BaseDialog.Popup
@@ -200,7 +209,7 @@ export type DialogBodyProps = React.ComponentProps<"div">;
  * The part that scrolls. The header and footer stay put; a hairline appears on
  * each edge only while there is more content hidden past it.
  */
-export function DialogBody({ className, children, ...rest }: DialogBodyProps) {
+export function DialogBody({ className, contentClassName, children, ...rest }: DialogBodyProps & { contentClassName?: string }) {
   const wrap = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -241,7 +250,7 @@ export function DialogBody({ className, children, ...rest }: DialogBodyProps) {
         )}
         {...rest}
       >
-        <div ref={content}>{children}</div>
+        <div ref={content} className={contentClassName}>{children}</div>
       </div>
       <span
         aria-hidden

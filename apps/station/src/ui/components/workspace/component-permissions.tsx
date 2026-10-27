@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { COMPONENT_GRANTS } from "../../../services/component-grants";
 import { deps } from "../../../composition";
-import type { ComponentAsset } from "../../../core/model";
+import type { ComponentAsset } from "../../../core/asset-state";
 
 /** One permission ledger for Component settings and the capability inspector.
  * Saved grants survive reload; run approvals are transient and revocable while active.

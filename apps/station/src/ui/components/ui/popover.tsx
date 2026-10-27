@@ -1,3 +1,4 @@
+import { useOverlayContainer, useOverlayZIndex, OverlayLayer } from "./overlay-container";
 "use client";
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import { cn } from "../../lib/utils";
@@ -45,6 +46,8 @@ export function PopoverTrigger({ variant = "secondary", size = "md", className, 
 const widths = { auto: "w-max", sm: "w-64", md: "w-80", lg: "w-96" } as const;
 
 export type PopoverContentProps = Omit<BasePopover.Popup.Props, "className"> & {
+  /** Explicit trigger/virtual anchor for command-opened popovers. */
+  anchor?: BasePopover.Positioner.Props["anchor"];
   className?: string;
   side?: Side;
   align?: Align;
@@ -62,6 +65,7 @@ export type PopoverContentProps = Omit<BasePopover.Popup.Props, "className"> & {
 };
 
 export function PopoverContent({
+  anchor,
   side = "bottom",
   align = "center",
   sideOffset,
@@ -74,16 +78,19 @@ export function PopoverContent({
   children,
   ...rest
 }: PopoverContentProps) {
+  const overlayContainer = useOverlayContainer();
+  const zIndex = useOverlayZIndex("--z-popover");
   return (
-    <BasePopover.Portal container={container}>
+    <BasePopover.Portal container={container ?? overlayContainer}>
       <BasePopover.Positioner
+        anchor={anchor}
         side={side}
         align={align}
         sideOffset={sideOffset ?? (arrow ? 10 : 6)}
         alignOffset={alignOffset}
         collisionPadding={collisionPadding}
         arrowPadding={14}
-        className="z-(--z-popover)"
+        className="z-(--z-popover)" style={{ zIndex }}
       >
         <BasePopover.Popup
           className={cn(
@@ -104,7 +111,7 @@ export function PopoverContent({
           {...rest}
         >
           {arrow && <PopoverArrow />}
-          {children}
+          <OverlayLayer value={zIndex}>{children}</OverlayLayer>
         </BasePopover.Popup>
       </BasePopover.Positioner>
     </BasePopover.Portal>

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { createComposition } from "../src/composition";
+import { createComposition } from "../src/application";
+import { assetCatalog as legacyCatalog, stationAssetCatalog } from "@station/capabilities";
 import {
   assetCatalog,
   textDigest,
@@ -8,15 +9,37 @@ import {
 
 const storage = () => ({ getItem: () => null, setItem: () => {} });
 
+test("canonical consumers do not acquire legacy providers; aliases preserve exact grants and cancellation", async () => {
+  const app = createComposition(storage());
+  try {
+    for (const id of ["canonical", "legacy"]) app.store.dispatchDock({type:"createWidget",widget:"clock",id,target:{surface:"dashboard",intent:"append"}});
+    const canonical = app.openWidgetScope(app.store.active().id, "canonical", [stationAssetCatalog.id]);
+    const catalog = await canonical.acquire(stationAssetCatalog);
+    expect(catalog.list()).toHaveLength(app.store.active().assets.length);
+    expect(app.diagnostics.inspect().providers.find(provider => provider.capabilityId === legacyCatalog.id)?.acquisitions).toHaveLength(0);
+    await expect(canonical.acquire(legacyCatalog)).rejects.toThrow("grant required");
+    const legacy = app.openWidgetScope(app.store.active().id, "legacy", [legacyCatalog.id]);
+    const retained = await legacy.acquire(legacyCatalog);
+    expect(retained.list()).toEqual(catalog.list());
+    await expect(legacy.acquire(stationAssetCatalog)).rejects.toThrow("grant required");
+    await legacy.revoke();
+    expect(() => retained.list()).toThrow();
+    expect(catalog.list()).toHaveLength(app.store.active().assets.length);
+    await canonical.revoke();
+  } finally { await app.dispose(); }
+});
+
 test("Station documents all built-in contracts by their existing namespace and package", async () => {
   const deps = createComposition(storage());
   const snapshot = deps.diagnostics.inspect();
-  expect(snapshot.definitions).toHaveLength(7);
+  expect(snapshot.definitions).toHaveLength(18);
   for (const definition of snapshot.definitions) {
-    expect(definition.namespace).toBe("unit");
-    expect(definition.package).toBe("workspace");
+    const browser = definition.id === "station:browser/contexts";
+    const scripting = definition.id === "station:scripting/evaluate";
+    expect(definition.namespace).toBe(definition.id.split(":")[0]);
+    expect(definition.package).toBe(definition.id.split(":")[1]!.split("/")[0]);
     expect(definition.description.length).toBeGreaterThan(20);
-    expect(
+    if(definition.id!=='station:services/invoke')expect(
       snapshot.providers.some(
         (provider) =>
           provider.capabilityId === definition.id &&
@@ -52,9 +75,10 @@ test("application reflection shows all workspace ownership, renames and real acq
   ).toBe("Renamed workspace");
   const scope = deps.openScope(first.id, "Consumer in first workspace");
   const catalog = await scope.acquire(assetCatalog);
+  const retainedCatalog = catalog.value;
   deps.store.createAsset("Only in second workspace");
   const summaries = catalog.value.list();
-  expect(summaries).toHaveLength(1);
+  expect(summaries).toHaveLength(first.assets.length);
   expect(Object.isFrozen(summaries[0])).toBe(true);
   expect(Object.keys(summaries[0]).sort()).toEqual([
     "id",
@@ -63,7 +87,7 @@ test("application reflection shows all workspace ownership, renames and real acq
     "revision",
   ]);
   const other = deps.openScope(second.id, "Consumer in second workspace");
-  expect((await other.acquire(assetCatalog)).value.list()).toHaveLength(2);
+  expect((await other.acquire(assetCatalog)).value.list()).toHaveLength(second.assets.length + 1);
   expect(
     deps.diagnostics
       .inspect()
@@ -71,13 +95,15 @@ test("application reflection shows all workspace ownership, renames and real acq
       ?.acquisitions,
   ).toHaveLength(2);
   await scope.revoke();
-  expect(() => catalog.value.list()).toThrow("cancelled");
+  expect(() => catalog.value).toThrow("revoked");
+  expect(() => retainedCatalog.list()).toThrow("cancelled");
   await deps.dispose();
   expect(deps.diagnostics.inspect()).toEqual({
     state: "disposed",
     definitions: [],
     scopes: [],
     providers: [],
+    services: [],
   });
   expect(() => deps.openScope(first.id, "Late")).toThrow("disposed");
 });

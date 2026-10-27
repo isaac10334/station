@@ -13,9 +13,11 @@ self.onmessage = async (event: MessageEvent<ComponentWorkerRequest>) => {
     const bytes = new Uint8Array(buffer);
     if (bytes.byteLength !== artifact.bytes || await sha256(bytes) !== artifact.sha256)
       throw new Error("Artifact bytes failed worker verification.");
-    const asset = await fetch("/api/component/translator.wasm", { cache: "no-store" });
-    if (!asset.ok) throw new Error("Pinned Polyengine translator unavailable.");
-    const translatorBytes = new Uint8Array(await asset.arrayBuffer());
+    const translatorBytes = event.data.translatorBytes ? new Uint8Array(event.data.translatorBytes) : await (async () => {
+      const asset = await fetch("/api/component/translator.wasm", { cache: "no-store" });
+      if (!asset.ok) throw new Error("Pinned Polyengine translator unavailable.");
+      return new Uint8Array(await asset.arrayBuffer());
+    })();
     if (await sha256(translatorBytes) !== artifact.translatorSha256)
       throw new Error("Polyengine translator hash mismatch.");
     const assetLoaded = performance.now();

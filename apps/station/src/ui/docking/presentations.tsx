@@ -1,5 +1,8 @@
+import { widgetFocusBounds } from "./focus-bounds";
+import { OverlayContainerContext } from "../components/ui/overlay-container";
 import {
   createContext,
+  memo,
   useCallback,
   useContext,
   useLayoutEffect,
@@ -7,11 +10,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { descendants, type DockLayout, type Panel } from "../../core/docking";
+import { panelSurface, descendants, type DockLayout, type Panel } from "../../core/docking";
 import { clippedBounds } from "./geometry";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { useDndMonitor } from "@dnd-kit/core";
+import { IconAction } from "../components/ui/icon-action";
+import { Minimize2 } from "lucide-react";
 import { floatingBounds } from "./floating";
+
+// Drag feedback changes geometry, not widget content. Do not call the renderer
+// again until its panel record or host render callback actually changes.
+const PresentedContent = memo(function PresentedContent({ panel, renderPanel }: { panel: Panel; renderPanel: (panel: Panel) => ReactNode }) {
+  return <>{renderPanel(panel)}</>;
+});
 
 type Bounds = {
   x: number;
@@ -95,20 +106,65 @@ export function PresentationHost({
   children,
   activeFloating,
   raiseFloating,
+  focusedPanel, focusPresentation = "focus", onFocusPanel, panelTitle, selectedWidgets, selectingWidget, onSelectWidget,
 }: {
+  focusedPanel: string | null;
+  focusPresentation?: "focus" | "quick-access";
+  onFocusPanel: (id: string | null) => void;
+  panelTitle: (panel: Panel) => string;
+  selectedWidgets: string[];
+  selectingWidget: boolean;
+  onSelectWidget: (id: string, additive?: boolean) => void;
   layout: DockLayout;
   renderPanel: (panel: Panel) => ReactNode;
   children: ReactNode;
   activeFloating?: string | null;
   raiseFloating?: (id: string) => void;
 }) {
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
   const anchors = useRef<Anchors>(new Map());
   // Desktop and mobile may both retain backing slots for a singleton. Track each
   // registration so unmounting one cannot remove the other panel's live anchor.
   const registeredSlots = useRef(new Map<string, Set<HTMLElement>>());
   const bounds = useRef<Record<string, Bounds>>({});
   const frames = useRef(new Map<string, HTMLDivElement>());
-  const layer = useRef<HTMLDivElement>(null);
+  const layer = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => { if (focusedPanel && !layout.panels[focusedPanel]) onFocusPanel(null); }, [focusedPanel, layout.panels, onFocusPanel]);
+  const focusId = focusedPanel && layout.panels[focusedPanel] ? focusedPanel : null;
+  const presentationRef = useRef(focusPresentation); presentationRef.current = focusPresentation;
+  const focusedRef = useRef(focusId);
+  focusedRef.current = focusId;
+  const previousFocus = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const dialog = layer.current;
+    if (!dialog) return;
+    let focusFrame = 0;
+    let activationFocus: ReturnType<typeof setTimeout> | undefined;
+    const preferredFocus = () => {
+      if (!focusId || focusedRef.current !== focusId || !dialog.open) return;
+      frames.current.get(focusId)?.querySelector<HTMLElement>("[data-autofocus]")?.focus({ preventScroll: true });
+    };
+    // Native foreground activation can finish after showModal's initial focus.
+    // Reapply only an explicit widget autofocus target, never an arbitrary button.
+    const activated = () => { focusFrame = requestAnimationFrame(preferredFocus); };
+    window.addEventListener("focus", activated);
+    if (focusId && !dialog.open) {
+      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+      focusFrame = requestAnimationFrame(() => {
+        if (focusedRef.current !== focusId) return;
+        const frame = frames.current.get(focusId);
+        (frame?.querySelector<HTMLElement>("[data-autofocus]") ?? frame?.querySelector<HTMLElement>("input, textarea, button, [tabindex='0']"))?.focus({ preventScroll: true });
+      });
+      activationFocus = setTimeout(preferredFocus, 120);
+    } else if (!focusId && dialog.open) {
+      dialog.close();
+      previousFocus.current?.focus({ preventScroll: true });
+    }
+    scheduleRef.current();
+    return () => { cancelAnimationFrame(focusFrame); clearTimeout(activationFocus); window.removeEventListener("focus", activated); };
+  }, [focusId, focusPresentation]);
   const scheduleRef = useRef<() => void>(() => {});
   const observerRef = useRef<ResizeObserver | null>(null);
   // Pickup translates the mounted DOM, never a second iframe/editor/service.
@@ -276,6 +332,11 @@ export function PresentationHost({
       };
       const measureOne = (id: string): Bounds => {
         if (next[id]) return next[id];
+        const focused = focusedRef.current;
+        if (focused === id) return (next[id] = {
+          ...widgetFocusBounds({ width: window.innerWidth, height: window.innerHeight }, presentationRef.current),
+          visible: true, interactive: true, clip: "0px 0px 0px 0px", placement: "focus",
+        });
         const node = anchors.current.get(id)!;
         const boundsRect = rect(node);
         const parent = node.closest<HTMLElement>("[data-presentation-owner]");
@@ -299,8 +360,9 @@ export function PresentationHost({
             !!node.getClientRects().length &&
             right > left &&
             bottom > top &&
-            !parentHidden,
+            !parentHidden && (!focused || presentationRef.current === "quick-access" || descendants(layoutRef.current, focused).includes(id)),
           interactive:
+            (!focused || descendants(layoutRef.current, focused).includes(id)) &&
             (!ownerId ||
               (anchors.current.has(ownerId) &&
                 measureOne(ownerId).interactive)) &&
@@ -332,6 +394,7 @@ export function PresentationHost({
           clipPath: `inset(${box.clip})`,
         });
         element.inert = !box.visible || !box.interactive;
+        element.dataset.placement = box.placement;
         element.setAttribute("aria-hidden", String(element.inert));
         const previous = bounds.current[id];
         if (
@@ -399,6 +462,7 @@ export function PresentationHost({
     const root = layer.current;
     if (!root) return;
     const wheel = (event: WheelEvent) => {
+      if (focusedRef.current) return;
       if (
         event.defaultPrevented ||
         event.ctrlKey ||
@@ -455,14 +519,20 @@ export function PresentationHost({
   }, []);
   return (
     <PresentationContext.Provider value={registry}>
+      <OverlayContainerContext value={focusId ? layer.current ?? undefined : undefined}>
       {children}
-      <div ref={layer} className="app station-presentations">
+      <dialog ref={layer} className="app station-presentations station-focus-dialog" data-focus-presentation={focusPresentation} role={focusId ? "dialog" : "presentation"} aria-modal={focusId ? true : undefined} aria-label={focusId ? `Focused ${panelTitle(layout.panels[focusId])}` : undefined}
+        onCancel={event => { event.preventDefault(); onFocusPanel(null); }} onClose={() => { if (focusedRef.current) onFocusPanel(null); }}>
+        {focusId && <div className="station-focus-controls" style={focusPresentation === "quick-access" ? { left: "max(12px, calc((100vw - 720px) / 2))", right: "max(12px, calc((100vw - 720px) / 2))", top: "max(12px, calc((100dvh - 520px) / 2 - 40px))" } : undefined}><span>{panelTitle(layout.panels[focusId])}</span><IconAction label="Exit widget focus" className="size-8" onClick={() => onFocusPanel(null)}><Minimize2 size={16} /></IconAction></div>}
         {Object.values(layout.panels)
-          .filter((panel) => panel.kind !== "home")
+          .filter((panel) => panel.kind !== "home" && panel.id !== layout.rootId)
           .map((panel) => {
             const depth = Object.keys(layout.containers).filter((id) =>
               descendants(layout, id).includes(panel.id),
             ).length;
+            // Child presenters are siblings of their owner in this retained
+            // layer. They must inherit its maximized stacking band.
+            const maximized = !!layout.maximized && (layout.maximized === panel.id || descendants(layout, layout.maximized).includes(panel.id));
             const floated =
               !!layout.floating[panel.id] ||
               Object.keys(layout.floating).some((id) =>
@@ -481,9 +551,19 @@ export function PresentationHost({
                   else frames.current.delete(panel.id);
                 }}
                 data-presentation-owner={panel.id}
+                data-focus-member={focusId && (focusId === panel.id || descendants(layout, focusId).includes(panel.id)) || undefined}
+                data-presentation-float-root={floatRoot ?? undefined}
+                data-floating-window={floatRoot === panel.id ? panel.kind : undefined}
+                data-inspect-selected={selectedWidgets.includes(panel.id) || undefined}
+                data-inspect-pick={selectingWidget || undefined}
                 className="station-presentation"
                 onFocusCapture={(event) => {
+                  // React portal events bubble through the owning widget, but a
+                  // popup is not clipped content to reveal. Scrolling its backing
+                  // slot here moves the trigger while a submenu is being used.
+                  if (!event.currentTarget.contains(event.target as globalThis.Node)) return;
                   if (floatRoot) raiseFloating?.(floatRoot);
+                  if (focusedRef.current) return;
                   const target = event.target as HTMLElement,
                     anchor = anchors.current.get(panel.id);
                   const box = bounds.current[panel.id];
@@ -498,25 +578,36 @@ export function PresentationHost({
                   )
                     void revealPresentation(panel.id);
                 }}
-                onPointerDownCapture={() => {
+                onPointerDownCapture={(event) => {
+                  if (!event.currentTarget.contains(event.target as globalThis.Node)) return;
+                  if (selectingWidget && !["home", "browser", "navigation"].includes(panel.kind) && !(panel.kind === "widget" && panel.widget === "docking-inspector")) {
+                    event.preventDefault(); event.stopPropagation(); onSelectWidget(panel.id, event.ctrlKey || event.metaKey || event.shiftKey); return;
+                  }
                   if (floatRoot) raiseFloating?.(floatRoot);
                 }}
                 style={{
                   zIndex:
-                    (floated
+                    (focusId && (focusId === panel.id || descendants(layout, focusId).includes(panel.id)) ? 300 : floated
                       ? floatRoot === activeFloating
                         ? 106
                         : 56
-                      : layout.maximized === panel.id
+                      : maximized
                         ? 100
                         : 2) + depth,
                 }}
               >
-                {renderPanel(panel)}
+                <PresentedContent panel={panel} renderPanel={renderPanel} />
+                {selectingWidget && !["home", "browser", "navigation"].includes(panel.kind) && !(panel.kind === "widget" && panel.widget === "docking-inspector") && <button
+                  data-native-overlay
+                  type="button" className="absolute inset-0 z-50 cursor-crosshair border border-transparent hover:border-fg-2 hover:bg-fg/5 bg-transparent p-0 focus-visible:outline-2 focus-visible:outline-focus"
+                  aria-label={`Inspect ${panelTitle(panel)}`}
+                  onClick={event => { if (event.detail === 0) onSelectWidget(panel.id, event.ctrlKey || event.metaKey || event.shiftKey); }}
+                />}
               </div>
             );
           })}
-      </div>
+      </dialog>
+      </OverlayContainerContext>
     </PresentationContext.Provider>
   );
 }

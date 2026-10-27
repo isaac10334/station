@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { validSourcePath, assetFiles } from "./source-project";
-import type { Asset } from "./model";
+import type { Asset } from "./asset-state";
 
 /** Source-only wire data. Executable artifacts, installations and grants never enter a room. */
 export const sharedSourceSchema = z
   .object({
     id: z.string().min(1).max(160),
-    kind: z.enum(["component", "web-content", "theme", "package"]),
+    kind: z.enum(["component", "web-content", "theme", "package", "widget-definition", "desk-template", "svg", "decision", "data-source", "script", "custom", "markdown", "note"]),
     name: z.string().min(1).max(120),
     description: z.string().max(2000),
     revision: z.number().int().nonnegative(),
@@ -88,6 +88,8 @@ export function conflictAsset(asset: Asset): Asset {
     id: `conflict-${crypto.randomUUID()}`,
     instanceId: crypto.randomUUID(),
     name: `${asset.name.slice(0, 105)} (conflict)`,
+    origin: { assetId: asset.id, revision: asset.revision },
+    editorPolicyId: undefined,
     revision: 0,
     ...(asset.kind === "component" ? { artifact: null, grants: {} } : {}),
   };

@@ -1,0 +1,581 @@
+{
+  "version": 1,
+  "exceptionLimit": 62,
+  "exceptions": [
+    {
+      "file": "apps/station/src/ui/asset-browser.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/capability-inspector.tsx",
+      "target": "apps/station/src/services/component-grants.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/capability-inspector.tsx",
+      "target": "apps/station/src/services/capability-inspection.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/component-view.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/component-view.tsx",
+      "target": "apps/station/src/providers/component-runtime.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/account-settings.tsx",
+      "target": "apps/station/src/services/account-client.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/action-button.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/action-button.tsx",
+      "target": "apps/station/src/services/svg-icons.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/agent-access-settings.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/agent-access-settings.tsx",
+      "target": "apps/station/src/services/agent-control-client.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/asset-inspector.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/asset-open-dialog.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/command-output.tsx",
+      "target": "apps/station/src/services/package-runtime.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/command-output.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/component-permissions.tsx",
+      "target": "apps/station/src/services/component-grants.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/component-permissions.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/custom-asset-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/data-asset-view.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/data-source-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/data-view.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/decision-asset-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/desk-controls.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/desk-settings-dialog.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/desk-template-view.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/desk-widget-settings.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/desktop-update-settings.tsx",
+      "target": "apps/station/src/services/desktop-updates.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/editor-controls.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/editor-workspace.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/editor-workspace.tsx",
+      "target": "apps/station/src/services/editor-session.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/extension-settings.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/fork-package-action.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/program-author.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/program-definition-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/program-widget.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/runtime-timeline.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/services-manager.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/source-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/source-editor.tsx",
+      "target": "apps/station/src/services/editor-session.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/svg-asset-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/svg-asset-editor.tsx",
+      "target": "apps/station/src/services/svg-icons.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/svg-canvas.tsx",
+      "target": "apps/station/src/services/svg-icons.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/svg-edit-canvas.tsx",
+      "target": "apps/station/src/services/svg-edit-source.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/svg-edit-canvas.tsx",
+      "target": "apps/station/src/services/svg-icons.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/theme-editor.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/theme-editor.tsx",
+      "target": "apps/station/src/services/svg-icons.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/widget-definition-view.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/workspace-package-settings.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/components/workspace/workspace-sharing.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/contribution-view.tsx",
+      "target": "apps/station/src/services/package-runtime.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/contribution-view.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/lib/control-operation.ts",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/lib/owner-commands.ts",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/lib/use-account.ts",
+      "target": "apps/station/src/services/account-client.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/lib/use-source-editing.ts",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/sandbox-frame.tsx",
+      "target": "apps/station/src/services/guest-bridge.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/theme-runtime.tsx",
+      "target": "apps/station/src/composition.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing singleton consumer; migrate this feature to injected typed state/actions. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/theme-runtime.tsx",
+      "target": "apps/station/src/services/svg-icons.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/web-widget-instance.tsx",
+      "target": "apps/station/src/services/web-build.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/workspace-app.tsx",
+      "target": "apps/station/src/services/account-client.ts",
+      "rule": "layer-edge",
+      "owner": "Station UI/interaction",
+      "reason": "Existing presentation adapter access; expose an inward typed controller port in an owned feature slice. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/src/ui/docking/floating-resize.tsx",
+      "target": "apps/station/src/ui/docking/floating-resize.tsx#cycle=a40068e93ffdc014",
+      "rule": "module-cycle",
+      "owner": "Station UI/interaction",
+      "reason": "Existing cyclic module group (type-only edges included); extract cohesive inward contracts in a separately owned slice. Edge-set fingerprint prevents silent expansion. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/server/component-build.ts",
+      "target": "apps/station/server/component-build.ts#cycle=e83a3e9b9710c4e5",
+      "rule": "module-cycle",
+      "owner": "Station architecture/integration",
+      "reason": "Existing cyclic module group (type-only edges included); extract cohesive inward contracts in a separately owned slice. Edge-set fingerprint prevents silent expansion. See docs/engineering-plan.md."
+    },
+    {
+      "file": "apps/station/desktop/main.ts",
+      "target": "dynamic import",
+      "rule": "unresolved-dynamic",
+      "owner": "Station desktop composition",
+      "reason": "Dev-only HTML import from the absolute checkout directory baked by prepare-desktop. Requires both the dev build channel and development profile; no request, guest or asset supplies the path. Packaged channels never import checkout source."
+    }
+  ],
+  "packages": {
+    "@loop-kit/capabilities": {
+      "path": "node_modules/@loop-kit/capabilities",
+      "owner": "Loop Kit runtime",
+      "role": "contracts",
+      "allows": [],
+      "sourceRoots": []
+    },
+    "@loop-kit/host": {
+      "path": "node_modules/@loop-kit/host",
+      "owner": "Loop Kit runtime",
+      "role": "providers",
+      "allows": [
+        "@loop-kit/capabilities"
+      ],
+      "sourceRoots": []
+    },
+    "@loop-kit/ui": {
+      "path": "node_modules/@loop-kit/ui",
+      "owner": "UI interaction",
+      "role": "contracts",
+      "allows": [],
+      "sourceRoots": []
+    },
+    "@loop-kit/scripting": {
+      "path": "node_modules/@loop-kit/scripting",
+      "owner": "Loop Kit runtime",
+      "role": "application",
+      "allows": [
+        "@loop-kit/capabilities",
+        "@loop-kit/ui"
+      ],
+      "sourceRoots": []
+    },
+    "@station/capabilities": {
+      "path": "packages/capabilities",
+      "owner": "Station contracts",
+      "role": "contracts",
+      "allows": [
+        "@loop-kit/capabilities"
+      ]
+    },
+    "@station/protocol": {
+      "path": "packages/protocol",
+      "owner": "Station contracts",
+      "role": "contracts",
+      "allows": []
+    },
+    "@station/sdk": {
+      "path": "packages/sdk",
+      "owner": "Station guest SDK",
+      "role": "providers",
+      "allows": [
+        "@station/capabilities"
+      ]
+    },
+    "@station/ui": {
+      "path": "packages/ui",
+      "owner": "UI interaction",
+      "role": "presentation",
+      "allows": [
+        "@station/capabilities"
+      ]
+    },
+    "@station/app": {
+      "path": "apps/station",
+      "owner": "Station product",
+      "role": "composition",
+      "sourceRoots": [
+        "src",
+        "server",
+        "desktop"
+      ],
+      "allows": [
+        "@loop-kit/capabilities",
+        "@loop-kit/host",
+        "@loop-kit/ui",
+        "@loop-kit/scripting",
+        "@station/capabilities",
+        "@station/protocol",
+        "@station/sdk",
+        "@station/ui"
+      ],
+      "layerOverrides": {
+        "src/core": "domain",
+        "src/services": "providers",
+        "src/providers": "providers",
+        "src/ui": "presentation",
+        "src/contracts": "contracts",
+        "src/contracts/command-ports.ts": "application",
+        "src/contracts/component-runtime.ts": "application",
+        "src/generated": "contracts",
+        "src/contracts/component-worker.ts": "application"
+      }
+    },
+    "@station/site": {
+      "path": "apps/site",
+      "owner": "UI interaction",
+      "role": "composition",
+      "sourceRoots": [
+        "src",
+        "server.ts"
+      ],
+      "allows": [
+        "@station/ui"
+      ]
+    }
+  },
+  "layers": {
+    "contracts": [],
+    "domain": [
+      "contracts"
+    ],
+    "application": [
+      "contracts",
+      "domain"
+    ],
+    "providers": [
+      "contracts",
+      "domain",
+      "application"
+    ],
+    "presentation": [
+      "contracts",
+      "domain",
+      "application"
+    ],
+    "composition": [
+      "contracts",
+      "domain",
+      "application",
+      "providers",
+      "presentation",
+      "infrastructure"
+    ],
+    "infrastructure": [
+      "contracts",
+      "domain",
+      "application"
+    ]
+  }
+}

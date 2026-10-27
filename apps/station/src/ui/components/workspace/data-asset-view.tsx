@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { DataAsset, Workspace } from "../../../core/model";
+import { awaitOwnerOperation } from "../../lib/owner-commands";
+import type { DataAsset } from "../../../core/asset-state";
+import type { Workspace } from "../../../core/workspace-state";
 import { deps } from "../../../composition";
 import { EditorWorkspace, useEditorOwner } from "./editor-workspace";
 import {
@@ -9,6 +11,10 @@ import {
 import { packageRuntime } from "../../../composition";
 const { prepareInstallation } = packageRuntime;
 import { parseTheme } from "../../../core/theme-assets";
+import { notePath } from "../../../core/notes";
+import { RichTextEditor } from "../ui/rich-text-editor";
+import { useSourceEditing } from "../../lib/use-source-editing";
+import { patchOwnerFiles } from "../../lib/owner-commands";
 import { Button } from "../ui/button";
 import { ThemeEditor } from "./theme-editor";
 import { Code, Eye } from "../../lib/icons";
@@ -33,13 +39,15 @@ export function DataAssetView({
   sourceRequest?: number;
 }) {
   const session = useEditorOwner(asset, ownerId);
+  const noteEditable = useSourceEditing(asset.id);
+  const [help, setHelp] = useState(false);
   const [themeMode, setThemeMode] = useState("design");
   useEffect(() => {
     if (sourceRequest) setThemeMode("code");
   }, [sourceRequest]);
   const preparation = useRef<AbortController | null>(null);
   useEffect(() => () => preparation.current?.abort(), []);
-  const [review, setReview] = useState<PackageInstallation | null>(null),
+  const [review, setReview] = useState<(PackageInstallation & { preparationId: string }) | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const download = () => {
@@ -57,8 +65,21 @@ export function DataAssetView({
       setError(String(error));
     }
   };
+  if (asset.kind === "note" || asset.kind === "markdown") {
+    const path = notePath(asset.kind);
+    return <RichTextEditor key={asset.id} label={asset.name} source={asset.files[path] ?? ""} format={asset.kind} readOnly={!noteEditable} onCommit={(next, expected) => {
+      const current = deps.store.active().assets.find(item => item.id === asset.id);
+      if (!noteEditable || current?.files?.[path] !== expected) throw new Error("Note source changed or editing is unavailable. Your draft is retained.");
+      patchOwnerFiles(asset.id, { [path]: next });
+    }} />;
+  }
   return (
     <div className="station-project-view">
+      {help && asset.kind === "package" && <section className="space-y-2 border-b border-line bg-frame p-4 text-xs" aria-label="Package guide">
+        <h3 className="text-sm font-medium">Build a reusable package</h3>
+        <ol className="list-decimal space-y-2 pl-4"><li>Edit <code>station.json</code>: give the package a stable identity and declare contributions.</li><li>Use the file tree to add source files. Keep entry paths local to the package.</li><li>Declare only the capabilities each contribution needs. Declarations request access; they do not grant it.</li><li>Choose Install package to review the requested access, then explicitly install. Opening source does not run it.</li><li>Export the package to share its source. Your task credentials, grants and live sessions are excluded.</li></ol>
+        <p>A JSON script computes a value. A TypeScript program builds a widget, service or action. A Rust Component builds a portable WASM artifact with declared imports.</p>
+      </section>}
       <div className="station-project-toolbar">
         <strong>{asset.name}</strong>
         <span className="spacer" />
@@ -79,6 +100,7 @@ export function DataAssetView({
           </Button>
         ) : (
           <>
+            <Button size="sm" variant="ghost" aria-expanded={help} onClick={() => setHelp(!help)}>Package guide</Button>
             <Button size="sm" onClick={download}>
               Export package
             </Button>
@@ -91,13 +113,13 @@ export function DataAssetView({
                 try {
                   const controller = new AbortController();
                   preparation.current = controller;
-                  setReview(
-                    await prepareInstallation(
-                      workspace,
-                      asset.id,
-                      controller.signal,
-                    ),
-                  );
+                  const operation = deps.control.execute({ method: "package.prepare", params: { assetId: asset.id } }).result;
+                  const stop = () => deps.control.execute({ method: "operations.cancel", params: { operationId: operation.operationId } });
+                  controller.signal.addEventListener("abort", stop, { once: true });
+                  try {
+                    const prepared = await awaitOwnerOperation(operation.operationId);
+                    setReview({ ...deps.control.preparedPackage(prepared.preparationId), preparationId: prepared.preparationId });
+                  } finally { controller.signal.removeEventListener("abort", stop); }
                 } catch (error) {
                   setError(String(error));
                 } finally {
@@ -138,7 +160,12 @@ export function DataAssetView({
         </div>
       )}
       {asset.kind === "theme" && themeMode === "design" ? (
-        <ThemeEditor asset={asset} workspace={workspace} />
+        <ThemeEditor
+          key={asset.id}
+          asset={asset}
+          workspace={workspace}
+          onOpenCode={() => setThemeMode("code")}
+        />
       ) : (
         <EditorWorkspace session={session} ownerId={ownerId} />
       )}
@@ -184,15 +211,15 @@ export function DataAssetView({
               onClick={() => {
                 try {
                   if (review)
-                    deps.store.installPackage({
-                      ...review,
+                    deps.control.execute({ method: "package.install", params: {
+                      preparationId: review.preparationId,
                       grants: Object.fromEntries(
                         review.manifest.contributions.map((item) => [
                           item.id,
                           item.capabilities,
                         ]),
                       ),
-                    });
+                    } });
                   setReview(null);
                 } catch (error) {
                   setError(String(error));

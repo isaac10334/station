@@ -1,5 +1,6 @@
 import { useSourceEditing } from "../../lib/use-source-editing";
 import { useEffect, useRef } from "react";
+import { CodeFormatButton } from "../ui/code-format-button";
 import { indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
@@ -10,60 +11,31 @@ import {
   StateEffect,
   Prec,
 } from "@codemirror/state";
-import { rust } from "@codemirror/lang-rust";
-import { javascript } from "@codemirror/lang-javascript";
-import { html } from "@codemirror/lang-html";
-import { css } from "@codemirror/lang-css";
-import { json } from "@codemirror/lang-json";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags } from "@lezer/highlight";
 import { autocompletion } from "@codemirror/autocomplete";
 import { setDiagnostics } from "@codemirror/lint";
 import { deps } from "../../../composition";
 import { assetFiles } from "../../../core/source-project";
 import type { EditorSession } from "../../../services/editor-session";
 
+import { codeEditorTheme, codeLanguage } from "../ui/code-editor-theme";
+
 const sourceSync = Annotation.define<boolean>();
-const sourceHighlighting = syntaxHighlighting(
-  HighlightStyle.define([
-    {
-      tag: tags.keyword,
-      color: "var(--focus-ring, var(--fg))",
-      fontWeight: "600",
-    },
-    { tag: [tags.name, tags.operator, tags.punctuation], color: "var(--fg)" },
-    {
-      tag: [tags.string, tags.number, tags.attributeName],
-      color: "var(--fg-2)",
-    },
-    {
-      tag: [tags.comment, tags.meta],
-      color: "var(--fg-3)",
-      fontStyle: "italic",
-    },
-  ]),
-);
-const language = (path: string) =>
-  path.endsWith(".rs")
-    ? rust()
-    : /\.[jt]sx?$/.test(path)
-      ? javascript({ typescript: /\.tsx?$/.test(path), jsx: /x$/.test(path) })
-      : path.endsWith(".html") || path.endsWith(".svg")
-        ? html()
-        : path.endsWith(".css")
-          ? css()
-          : path.endsWith(".json")
-            ? json()
-            : [];
 /** Shared CodeMirror view. Per-file state belongs to the editor session, not the asset. */
 export function SourceEditor({
   session,
   path,
+  onChange,
+  editable,
 }: {
+  editable?: boolean;
   session: EditorSession;
   path: string;
+  onChange?: (path: string, source: string) => void;
 }) {
-  const readOnly = !useSourceEditing(session.asset.id);
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+  const sourceEditable = useSourceEditing(session.asset.id);
+  const readOnly = !(editable ?? sourceEditable);
   const holder = useRef<HTMLDivElement>(null),
     view = useRef<EditorView | null>(null);
   const files = assetFiles(session.asset);
@@ -74,28 +46,11 @@ export function SourceEditor({
       basicSetup,
       EditorView.editable.of(!readOnly),
       EditorState.readOnly.of(readOnly),
-      sourceHighlighting,
+      codeEditorTheme,
+      EditorView.contentAttributes.of({ "aria-label": `${path} source` }),
       Prec.highest(keymap.of([indentWithTab])),
-      language(path),
+      codeLanguage(path),
       EditorView.lineWrapping,
-      EditorView.theme({
-        "&": {
-          height: "100%",
-          backgroundColor: "var(--frame)",
-          color: "var(--fg)",
-        },
-        ".cm-scroller": {
-          overflow: "auto",
-          fontFamily: '"IBM Plex Mono", monospace',
-          fontSize: "12px",
-        },
-        ".cm-gutters": {
-          backgroundColor: "var(--raised)",
-          color: "var(--fg-3)",
-          borderRight: "1px solid var(--line-2)",
-        },
-        "&.cm-focused": { outline: "none" },
-      }),
       autocompletion({
         override: /\.[jt]sx?$/.test(path)
           ? [
@@ -122,11 +77,19 @@ export function SourceEditor({
             transaction.annotation(sourceSync),
           )
         )
-          deps.store.editFile(
-            session.asset.id,
-            path,
-            update.state.doc.toString(),
-          );
+          if (changeRef.current)
+            changeRef.current(path, update.state.doc.toString());
+          else
+            deps.control.execute({
+              method: "asset.files.patch",
+              params: {
+                assetId: session.asset.id,
+                expectedAssetRevision: deps.store
+                  .active()
+                  .assets.find((a) => a.id === session.asset.id)!.revision,
+                patch: { [path]: update.state.doc.toString() },
+              },
+            });
       }),
     ];
     const state =
@@ -179,10 +142,24 @@ export function SourceEditor({
       );
   }, [session.problems, path]);
   return (
-    <div
-      className="source-editor station-code-view"
-      ref={holder}
-      aria-label={`${path} source`}
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-2 py-1">
+        <span className="truncate text-xs text-fg-3">
+          {path}
+          {readOnly ? " · Read only" : ""}
+        </span>
+        <CodeFormatButton
+          key={path}
+          view={view}
+          path={path}
+          readOnly={readOnly}
+        />
+      </div>
+      <div
+        className="source-editor station-code-view"
+        ref={holder}
+        aria-label={`${path} source`}
+      />
+    </div>
   );
 }

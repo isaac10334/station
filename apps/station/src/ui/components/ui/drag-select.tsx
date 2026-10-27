@@ -37,7 +37,7 @@ const THRESHOLD = 4;
 // Within this distance of the top or bottom edge, the area scrolls itself while you drag.
 const EDGE = 36;
 
-const itemsIn = (area: HTMLElement | null) => Array.from(area?.querySelectorAll<HTMLElement>("[data-select-id]") ?? []);
+const itemsIn = (area: HTMLElement | null) => Array.from(area?.querySelectorAll<HTMLElement>("[data-select-id]") ?? []).filter(item => item.getClientRects().length > 0);
 const idOf = (el: Element) => (el as HTMLElement).dataset.selectId!;
 const same = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -237,6 +237,9 @@ export function DragSelectArea({ label, gridClassName, className, children, onPo
       onPointerDown={(e) => {
         onPointerDown?.(e);
         if (e.defaultPrevented || disabled) return;
+        // Controls and explicit native drag sources own their pointer gesture.
+        // Pointer capture for marquee selection would suppress HTML asset drops.
+        if ((e.target as Element).closest('button,input,select,textarea,summary,a,[draggable="true"]')) return;
         const touch = e.pointerType === "touch";
         if (!touch && e.button !== 0) return;
         // Leave the scrollbar alone.

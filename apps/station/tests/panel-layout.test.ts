@@ -104,11 +104,13 @@ test("Alt wins over Shift; Shift chooses the nearest split edge", () => {
 });
 
 describe("host surface policy and recovery", () => {
-  test("sidebar and bottom reject splits; main stops at four leaves", () => {
+  test("sidebar supports composition; bottom rejects splits; main stops at four leaves", () => {
     let dock = createDockLayout([]);
     expect(surfacePanels(dock, "sidebar")).toEqual([NAVIGATION_ID]);
     const sidebar = reduceDock(dock, { type: "openAsset", assetId: "a", target: { surface: "sidebar", intent: "right", nodeId: "stack:sidebar" } });
-    expect(sidebar).toMatchObject({ ok: false, layout: dock });
+    expect(sidebar.ok).toBe(true);
+    expect(leafStacks(sidebar.layout.surfaces.sidebar)).toBe(2);
+    expect(reduceDock(dock, { type: "openAsset", assetId: "bottom-split", target: { surface: "bottom", intent: "right", nodeId: "stack:bottom" } })).toMatchObject({ ok: false, layout: dock });
     for (let n = 1; n <= 3; n++) {
       const root = dock.surfaces.main!;
       const result = reduceDock(dock, { type: "openAsset", assetId: `split-${n}`, target: { surface: "main", intent: "right", nodeId: root.id } });
@@ -118,7 +120,7 @@ describe("host surface policy and recovery", () => {
     expect(leafStacks(dock.surfaces.main)).toBe(4);
     const rejected = reduceDock(dock, { type: "openAsset", assetId: "fifth", target: { surface: "main", intent: "right", nodeId: dock.surfaces.main!.id } });
     expect(rejected).toMatchObject({ ok: false, layout: dock });
-    expect(DEFAULT_DOCK_POLICY.sidebar.maxLeafStacks).toBe(1);
+    expect(DEFAULT_DOCK_POLICY.sidebar.maxLeafStacks).toBe(100);
     expect(reduceDock(dock, { type: "visibility", surface: "dashboard", hidden: true }).ok).toBe(false);
   });
 
@@ -132,7 +134,7 @@ describe("host surface policy and recovery", () => {
     expect(surfacePanels(repaired, "main")).toEqual(["workspace-home", "asset-view:a"]);
   });
 
-  test("migration merges old sidebar splits without losing tab order or identities", () => {
+  test("migration preserves sidebar composition and can merge under a restrictive host policy", () => {
     let dock = createDockLayout([]);
     dock = apply(dock, { type: "openAsset", assetId: "a", target: { surface: "sidebar", intent: "tab" } });
     dock = apply(dock, { type: "openAsset", assetId: "b", target: { surface: "sidebar", intent: "tab" } });
@@ -140,7 +142,8 @@ describe("host surface policy and recovery", () => {
     saved.surfaces.sidebar = { kind: "split", id: "old-split", axis: "horizontal", ratio: .5,
       first: { kind: "stack", id: "old-first", tabs: [NAVIGATION_ID, "asset-view:a"], active: "asset-view:a" },
       second: { kind: "stack", id: "old-second", tabs: ["asset-view:b"], active: "asset-view:b" } };
-    const restored = migrateDock(saved);
+    expect(leafStacks(migrateDock(saved).surfaces.sidebar)).toBe(2);
+    const restored = migrateDock(saved, [], { ...DEFAULT_DOCK_POLICY, sidebar: { ...DEFAULT_DOCK_POLICY.sidebar, maxLeafStacks: 1 } });
     expect(leafStacks(restored.surfaces.sidebar)).toBe(1);
     expect(surfacePanels(restored, "sidebar")).toEqual([NAVIGATION_ID, "asset-view:a", "asset-view:b"]);
   });

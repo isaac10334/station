@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Workspace } from "../../../core/model";
+import type { Workspace } from "../../../core/workspace-state";
 import { installedDefinitions } from "../../../services/package-runtime";
 import { packageRuntime } from "../../../composition";
 const { invokeInstalledCommand } = packageRuntime;

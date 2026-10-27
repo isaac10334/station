@@ -1,10 +1,15 @@
-import type { Asset } from "../core/model";
+import { parseDeskTemplate } from "../core/desk-templates";
+import { parseWidgetRecipe } from "../core/widget-definitions";
+import type { Asset } from "../core/asset-state";
 import { assetFiles } from "../core/source-project";
 import { WorkerClient } from "./worker-client";
 import { buildWebProject, type WebBuild } from "./web-build";
 import { parseTheme } from "../core/theme-assets";
 import { parseManifest } from "../core/package-assets";
 import { EditorState } from "@codemirror/state";
+import { dataDocumentSchema } from "../core/data-sources";
+
+const scriptPrefix = "function __stationScript(input) {\nconst row = input;\n";
 
 export interface Problem {
   path: string;
@@ -15,6 +20,10 @@ export interface Problem {
 }
 /** One editor owner's presentation/session state; source writes stay in the workspace store. */
 export class EditorSession {
+  /** Trusted host adapter for non-asset drafts. Consumers still own validation and writes.
+   * The adapter never enters persisted state or a guest SDK.
+   */
+  sourceAdapter?: { editable: boolean; patch: (patch: Record<string, string | null>) => void };
   version = 0;
   private controller = new AbortController();
   asset: Asset;
@@ -85,14 +94,23 @@ export class EditorSession {
       if (this.disposed) throw new Error("Editor closed");
       this.worker = new WorkerClient(tools.languageWorker);
       await this.worker.request({ op: "init", resources: tools.resources });
+      if(this.asset.kind==='script'&&assetFiles(this.asset)['program.json']) {
+        const {resources}=await import('../generated/program-resources');
+        await this.worker.request({op:'init',resources:{...tools.resources,...resources,'node_modules/@station/sdk/index.d.ts':`import {createGuestSdk} from '@loop-kit/scripting'; declare const sdk: ReturnType<typeof createGuestSdk>; export const ui: typeof sdk.ui; export const invoke: typeof sdk.invoke; export const subscribe: typeof sdk.subscribe; export const configuration:Readonly<Record<string,string|boolean>>; declare global { namespace JSX { interface IntrinsicElements { [name:string]: any } } }`},program:true});
+      }
     }
     return this.worker;
   }
   async diagnose() {
-    if (this.asset.kind === "theme" || this.asset.kind === "package") {
-      const path = this.asset.kind === "theme" ? "theme.json" : "station.json";
+    if (this.asset.kind === "data-source") {
+      try { dataDocumentSchema.parse(JSON.parse(assetFiles(this.asset)["data.json"] ?? "")); this.problems = []; }
+      catch (error) { this.problems = [{path:"data.json",from:0,to:1,severity:"error",message:String(error)}]; }
+      this.publish(); return;
+    }
+    if (this.asset.kind === "theme" || this.asset.kind === "package" || this.asset.kind === "widget-definition" || this.asset.kind === "desk-template") {
+      const path = this.asset.kind === "desk-template" ? "desk.json" : this.asset.kind === "theme" ? "theme.json" : this.asset.kind === "widget-definition" ? "widget.json" : "station.json";
       try {
-        (this.asset.kind === "theme" ? parseTheme : parseManifest)(
+        (this.asset.kind === "desk-template" ? parseDeskTemplate : this.asset.kind === "theme" ? parseTheme : this.asset.kind === "widget-definition" ? parseWidgetRecipe : parseManifest)(
           assetFiles(this.asset)[path]!,
         );
         this.problems = [];
@@ -115,10 +133,10 @@ export class EditorSession {
       const worker = await this.language();
       const problems = await worker.request<Problem[]>({
         op: "diagnostics",
-        files: assetFiles(this.asset),
+        files: this.languageFiles(),
       });
       if (generation === this.generation && !this.disposed) {
-        this.problems = problems;
+        this.problems = this.asset.kind === "script"&&!assetFiles(this.asset)['program.json'] ? problems.map(p => ({...p,from:Math.max(0,p.from-scriptPrefix.length),to:Math.max(1,p.to-scriptPrefix.length)})) : problems;
         this.publish();
       }
     } catch (error) {
@@ -128,12 +146,16 @@ export class EditorSession {
       }
     }
   }
+  private languageFiles() {
+    const files=assetFiles(this.asset);
+    return this.asset.kind === "script"&&!files['program.json'] ? {...files,"main.js":`${scriptPrefix}${files["main.js"] ?? ""}\n}`} : files;
+  }
   async complete(path: string, position: number) {
     return (await this.language()).request<{ label: string; type: string }[]>({
       op: "completion",
       path,
-      position,
-      files: assetFiles(this.asset),
+      position: position + (this.asset.kind === "script"&&!assetFiles(this.asset)['program.json'] ? scriptPrefix.length : 0),
+      files: this.languageFiles(),
     });
   }
   async run() {

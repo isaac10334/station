@@ -1,4 +1,4 @@
-import {getIcons} from "@station/ui/theme-icons";
+import { getIcons, subscribeIcons } from "@station/ui/theme-icons";
 import { useEffect, useRef, useState } from "react";
 import { webContentDocument } from "../core/sandbox-document";
 import { serveGuest, type GuestBindings } from "../services/guest-bridge";
@@ -25,7 +25,7 @@ function themeSnapshot() {
   return {
     mode: document.documentElement.dataset.theme === "light" ? "light" : "dark",
     variables,
-    icons:{...getIcons()},
+    icons: { ...getIcons() },
   };
 }
 /** One opaque frame and private port per execution. A second load revokes authority. */
@@ -69,9 +69,13 @@ export function SandboxFrame({
       attributes: true,
       attributeFilter: ["style", "data-theme"],
     });
+    const unsubscribeIcons = subscribeIcons(() =>
+      session.current?.theme(themeSnapshot()),
+    );
     window.addEventListener("message", ready);
     return () => {
       observer.disconnect();
+      unsubscribeIcons();
       window.removeEventListener("message", ready);
       session.current?.close();
       session.current = null;

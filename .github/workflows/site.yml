@@ -34,6 +34,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun run check
       - run: bun run test:release
       - run: bun run build:site
       - run: bun run --cwd apps/site typecheck

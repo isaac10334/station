@@ -1,15 +1,16 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import type { AcquisitionSnapshot, HostSnapshot, ProviderSnapshot, ScopeSnapshot } from "@loop-kit/host";
-import { Tabs, TabsList, TabsTab, TabsPanel, TabsPanels } from "./components/ui/tabs";
+import { LayoutWidget } from "./components/workspace/layout-widget";
+import { RuntimeTimeline } from "./components/workspace/runtime-timeline";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { ComponentGrantList } from "./components/workspace/component-permissions";
 import { InspectorBranch } from "./components/ui/inspector-branch";
 import { COMPONENT_GRANTS } from "../services/component-grants";
-import { assetCatalog, textDigest, workspaceClock } from "@station/capabilities";
-import { type WorkspaceCapabilityRuntime } from "../providers/workspace-capabilities";
-import type { Workspace } from "../core/model";
-import type { WidgetActions } from "./widget-views";
+import { stationAssetCatalog as assetCatalog, loopTextDigest as textDigest, loopClock as workspaceClock } from "@station/capabilities";
+import { type WorkspaceCapabilityRuntime } from "../contracts/widget-runtime";
+import type { Workspace } from "../core/workspace-state";
+import type { WidgetActions } from "./widget-actions";
 import { acquisitionProvider, capabilityProviders, scopeUseCount } from "../services/capability-inspection";
 
 function Identity({ children }: { children: string }) {
@@ -140,7 +141,7 @@ function ProviderProbe({ capabilityId, version, workspaceId, runtime, enabled }:
       else if (!scope) setBusy(false);
     }
   }
-  if (!supported) return <p className="my-2 text-[11px] text-fg-3">{capabilityId === "unit:workspace/component-runtime-polyengine" ? "Use the Component editor’s Run tab to invoke this provider with verified bytes and import grants." : "No inspector action for this contract version. Its consumers acquire it through their own workspace flow."}</p>;
+  if (!supported) return <p className="my-2 text-[11px] text-fg-3">{capabilityId === "station:runtime/component-polyengine" ? "Use the Component editor’s Run tab to invoke this provider with verified bytes and import grants." : "No inspector action for this contract version. Its consumers acquire it through their own workspace flow."}</p>;
   return <div className="space-y-2 py-2">
     {capabilityId === textDigest.id && <div><label htmlFor={inputId} className="mb-1 block text-[11px] text-fg-2">Text to hash</label><Input id={inputId} value={text} onChange={event => setText(event.target.value)} maxLength={65536} /></div>}
     <Button type="button" variant="secondary" size="sm" disabled={busy} aria-busy={busy} onClick={invoke}>{busy ? "Invoking…" : capabilityId === assetCatalog.id ? "Read workspace assets" : capabilityId === textDigest.id ? "Hash text" : "Read local time"}</Button>
@@ -152,25 +153,26 @@ function ProviderProbe({ capabilityId, version, workspaceId, runtime, enabled }:
 /** Application-wide lifecycle inspection. Asset selection never determines the host or scope tree. */
 export function CapabilityInspector({ workspace, actions, runtime }: { workspace: Workspace; actions: WidgetActions; runtime: WorkspaceCapabilityRuntime }) {
   const snapshot = useSyncExternalStore(runtime.diagnostics.subscribe, runtime.diagnostics.inspect);
-  const [tab, setTab] = useState("capabilities");
+  const [tab, setTab] = useState("capabilities"), [legacy,setLegacy]=useState(false);
+  const visibleSnapshot = {...snapshot,definitions:snapshot.definitions.filter(definition=>legacy||!definition.id.startsWith('unit:'))};
   const components = workspace.assets.filter(asset => asset.kind === "component");
   return <div className="station-inspector">
-    <Tabs value={tab} onValueChange={value => setTab(String(value))} size="sm">
-      <TabsList aria-label="Capability inspection"><TabsTab value="capabilities" count={snapshot.definitions.length}>Capabilities</TabsTab><TabsTab value="scopes" count={snapshot.scopes.length}>Scopes</TabsTab><TabsTab value="grants" count={components.length}>Grants</TabsTab></TabsList>
-      <TabsPanels animateHeight={false}>
-      <TabsPanel value="capabilities" keepMounted>
+    <LayoutWidget value={tab} onValueChange={setTab} label="Capability inspection" pages={[
+        { id: "timeline", title: "Timeline", content: <RuntimeTimeline /> },
+        { id: "capabilities", title: "Capabilities", count: visibleSnapshot.definitions.length, content: <>
         <p className="my-3 text-[11px] leading-relaxed text-fg-3">Definitions and application-wide providers, grouped by namespace and package. Expand a capability for its contract, scope usage and test actions.</p>
-        <CapabilityTree snapshot={snapshot} workspaceId={workspace.id} runtime={runtime} enabled={tab === "capabilities"} />
-      </TabsPanel>
-      <TabsPanel value="scopes" keepMounted>
+        <label className="my-3 flex items-center gap-2 text-xs text-fg-3"><input type="checkbox" checked={legacy} onChange={event=>setLegacy(event.target.checked)}/>Show legacy compatibility contracts</label>
+        <CapabilityTree snapshot={visibleSnapshot} workspaceId={workspace.id} runtime={runtime} enabled={tab === "capabilities"} />
+       </> },
+        { id: "scopes", title: "Scopes", count: snapshot.scopes.length, content: <>
         <p className="my-3 text-[11px] leading-relaxed text-fg-3">Every saved workspace has a scope, even with inactive UI. Idle scopes start no work. Uses belong to a scope or its children; expand one to see its provider.</p>
         <ScopeTree snapshot={snapshot} />
         <div className="station-layout-tree mt-3"><InspectorBranch title="How scopes work" initiallyOpen={false}>
           <p className="my-2 text-[11px] leading-relaxed text-fg-3">Acquiring asks an application-wide provider to create a service instance owned by the requesting scope. Each acquisition creates a fresh instance. Counts include creation and cleanup.</p>
           <p className="my-2 text-[11px] leading-relaxed text-fg-3">Revoking a scope cancels its uses and child scopes. The provider remains available to other scopes. Scope names and nesting describe ownership, not permissions or whether a workspace UI is loaded.</p>
         </InspectorBranch></div>
-      </TabsPanel>
-      <TabsPanel value="grants" keepMounted>
+       </> },
+        { id: "grants", title: "Grants", count: components.length, content: <>
         <p className="my-3 text-[11px] leading-relaxed text-fg-3">Component import grants in {workspace.name}. Choose an asset below. Revoke saved approvals or active one-run access. Revoking cancels invocations using that capability.</p>
         <nav className="station-layout-tree" aria-label="Component grant tree">{components.map(asset => <InspectorBranch key={asset.instanceId} title={asset.name} meta={`${COMPONENT_GRANTS.filter(grant => asset.grants[grant.key]).length}/${COMPONENT_GRANTS.length} allowed`}>
           <Identity>{asset.id}</Identity>
@@ -178,8 +180,7 @@ export function CapabilityInspector({ workspace, actions, runtime }: { workspace
           <Button type="button" variant="ghost" size="sm" className="my-2" onClick={() => actions.onOpenRun(asset.id)}>Open {asset.name} run controls</Button>
         </InspectorBranch>)}</nav>
         {!components.length && <div className="space-y-2 py-2"><p className="text-[11px] text-fg-3">No Components in this workspace. Web content has no capability bridge.</p><Button type="button" variant="secondary" size="sm" onClick={actions.onNewAsset}>Create Component</Button></div>}
-      </TabsPanel>
-      </TabsPanels>
-    </Tabs>
+       </> }
+    ]} />
   </div>;
 }

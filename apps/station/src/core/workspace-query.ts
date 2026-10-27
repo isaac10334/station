@@ -9,7 +9,7 @@ export type WorkspaceSearchItem = {
   hint: string;
   keywords: string[];
   assetId?: string;
-  assetKind?: import("./model").Asset["kind"];
+  assetKind?: import("./asset-state").Asset["kind"];
   panelId?: string;
 };
 

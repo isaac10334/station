@@ -1,23 +1,18 @@
 import { useState } from "react";
-import type { Workspace } from "../../../core/model";
+import { useWidgetToolbarControls } from "./widget-frame";
+import { useDeskScene } from "./desk-scene";
+import { DeskOverview } from "./desk-overview";
+import type { Workspace } from "../../../core/workspace-state";
 import { deps } from "../../../composition";
 import { useDockController } from "../../docking/react";
 import { IconAction } from "../ui/icon-action";
 import { ActionTooltip } from "../ui/action-tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuGroup,
-} from "../ui/dropdown-menu";
-import { Columns, Settings, Search, Pin, Check } from "../../lib/icons";
+import { Columns, Settings, Search } from "../../lib/icons";
 import { WorkspaceSharing } from "./workspace-sharing";
-import { Dialog, DialogTrigger } from "../ui/dialog";
+import { Dialog } from "../ui/dialog";
 import { DeskSettingsDialog } from "./desk-settings-dialog";
 
-/** Desk switching and search stay available outside hideable workspace surfaces. */
+/** Desk controls are normal retained widget content; DockHost owns placement and overlay dragging. */
 export function DeskControls({
   workspace,
   onSearch,
@@ -26,8 +21,10 @@ export function DeskControls({
   onSearch: (query?: string) => void;
 }) {
   const { command } = useDockController();
+  const widgetControls = useWidgetToolbarControls();
   const desk = deps.store.desk();
   const [open, setOpen] = useState(false);
+  const { open: overview, snapshot, show: showOverview } = useDeskScene();
   const openAsset = (id: string) => {
     command({ type: "openAsset", assetId: id });
     setOpen(false);
@@ -41,68 +38,18 @@ export function DeskControls({
     );
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <div
-        className="station-desk-controls"
-        aria-label="Desk toolbar"
-        style={{
-          left: desk.toolbar?.anchor.endsWith("right")
-            ? "auto"
-            : desk.toolbar?.anchor.endsWith("center")
-              ? "50%"
-              : (desk.toolbar?.inset ?? 8),
-          right: desk.toolbar?.anchor.endsWith("right")
-            ? desk.toolbar.inset
-            : "auto",
-          bottom: desk.toolbar?.anchor.startsWith("top")
-            ? "auto"
-            : (desk.toolbar?.inset ?? 8),
-          top: desk.toolbar?.anchor.startsWith("top")
-            ? desk.toolbar.inset
-            : "auto",
-          transform: desk.toolbar?.anchor.endsWith("center")
-            ? "translateX(-50%)"
-            : undefined,
-        }}
-      >
-        <DropdownMenu>
-          <ActionTooltip label="Switch desk">
-            <DropdownMenuTrigger
-              variant="ghost"
-              size="sm"
-              chevron
-              aria-label="Switch desk"
-            >
-              <Columns />
-              <span className="max-w-32 truncate">{desk.name}</span>
-            </DropdownMenuTrigger>
-          </ActionTooltip>
-          <DropdownMenuContent>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Desks</DropdownMenuLabel>
-              {workspace.desks.map((item) => (
-                <DropdownMenuItem
-                  key={item.id}
-                  icon={item.id === desk.id ? <Check /> : <Columns />}
-                  onClick={() => deps.store.selectDesk(item.id)}
-                >
-                  {item.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="station-desk-controls" aria-label="Desk toolbar">
+        {widgetControls}
+        <ActionTooltip label="Switch desk"><button type="button" aria-label="Switch desk" className="flex h-8 min-w-0 items-center gap-2 rounded-lg px-2 text-sm text-fg-2 hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus" onClick={event => showOverview(true, event.detail !== 0)}><Columns /><span className="max-w-32 truncate">{desk.name}</span></button></ActionTooltip>
         <ActionTooltip label="Configure desk">
-          <DialogTrigger
-            render={
               <button
                 type="button"
                 aria-label="Configure desk"
                 className="station-icon-action inline-grid size-8 place-items-center rounded-lg text-fg-2 hover:bg-hover focus-visible:outline-2 focus-visible:outline-fg-3"
-              />
-            }
-          >
+                onClick={event => showOverview(true, event.detail !== 0)}
+              >
             <Settings />
-          </DialogTrigger>
+          </button>
         </ActionTooltip>
         <IconAction
           label="Search workspace"
@@ -112,70 +59,9 @@ export function DeskControls({
           <Search />
         </IconAction>
         <WorkspaceSharing />
-        <DropdownMenu>
-          <ActionTooltip label="Toolbar placement">
-            <DropdownMenuTrigger
-              iconOnly
-              variant="ghost"
-              size="sm"
-              aria-label="Toolbar placement"
-            >
-              <Pin />
-            </DropdownMenuTrigger>
-          </ActionTooltip>
-          <DropdownMenuContent>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Anchor toolbar</DropdownMenuLabel>
-              {(
-                [
-                  "bottom-left",
-                  "bottom-center",
-                  "bottom-right",
-                  "top-left",
-                  "top-center",
-                  "top-right",
-                ] as const
-              ).map((anchor) => (
-                <DropdownMenuItem
-                  key={anchor}
-                  icon={
-                    (desk.toolbar?.anchor ?? "bottom-left") === anchor ? (
-                      <Check />
-                    ) : (
-                      <Pin />
-                    )
-                  }
-                  onClick={() =>
-                    deps.store.patchDesk({
-                      toolbar: { anchor, inset: desk.toolbar?.inset ?? 8 },
-                    })
-                  }
-                >
-                  {anchor.replace("-", " ")}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Inset</DropdownMenuLabel>
-              {[8, 16, 24].map((inset) => (
-                <DropdownMenuItem
-                  key={inset}
-                  onClick={() =>
-                    deps.store.patchDesk({
-                      toolbar: {
-                        anchor: desk.toolbar?.anchor ?? "bottom-left",
-                        inset,
-                      },
-                    })
-                  }
-                >
-                  {inset}px
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+
       </div>
+      <DeskOverview snapshot={snapshot} onCreate={() => { showOverview(false); deps.store.createDesk(`Desk ${workspace.desks.length + 1}`); }} workspace={workspace} open={overview} onOpenChange={showOverview} onSelect={id => { showOverview(false); deps.store.selectDesk(id); }} onConfigure={() => { showOverview(false, false); setOpen(true); }} onRootChange={selection => { const result = command(selection); if (!result.ok) throw new Error(result.reason); showOverview(false); }} onOpenRoot={() => { const root = workspace.dock.panels[workspace.dock.rootId!]; if (root?.kind === "widget") { showOverview(false, false); openAsset(root.definitionId ?? `builtin:${root.widget}`); } }} />
       {open && (
         <DeskSettingsDialog
           workspace={workspace}

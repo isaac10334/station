@@ -42,6 +42,9 @@ const attributes = new Set([
   "stroke-width",
   "stroke-linecap",
   "stroke-linejoin",
+  "stroke-miterlimit",
+  "vector-effect",
+  "clip-rule",
   "stroke-opacity",
   "stroke-dasharray",
   "stroke-dashoffset",
@@ -61,7 +64,11 @@ const attributes = new Set([
  * Script, HTML, links, resources, CSS and animation are rejected rather than silently stripped.
  */
 export function svgIconUrl(source: string): string {
-  if (source.length > 32768 || /<!DOCTYPE|<!ENTITY|<\?(?!xml\s)/i.test(source))
+  if (typeof source !== "string") throw new Error("SVG file missing");
+  if (
+    new TextEncoder().encode(source).length > 32768 ||
+    /<!DOCTYPE|<!ENTITY|<\?(?!xml\s)/i.test(source)
+  )
     throw new Error("SVG icon exceeds limits or contains entities");
   const document = new DOMParser().parseFromString(source, "image/svg+xml");
   if (
@@ -84,6 +91,7 @@ export function svgIconUrl(source: string): string {
       if (
         !attributes.has(attribute.name) ||
         attribute.value.length > 8192 ||
+        /[\\\u0000-\u001f\u007f]/.test(attribute.value) ||
         /[<>]/.test(attribute.value) ||
         (/(?:https?:|data:|javascript:|\/\/)/i.test(attribute.value) &&
           attribute.name !== "xmlns") ||
@@ -94,4 +102,23 @@ export function svgIconUrl(source: string): string {
     }
   }
   return `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(document.documentElement))}`;
+}
+
+// A bounded content cache avoids XML parsing during every theme drag frame.
+const cached = new Map<string, { url?: string; error?: string }>();
+/** Content-keyed validation also invalidates immediately when an SVG is edited. */
+export function resolvedSvgIcon(source: string): string {
+  const prior = cached.get(source);
+  if (prior?.url) return prior.url;
+  if (prior?.error) throw new Error(prior.error);
+  try {
+    const url = svgIconUrl(source);
+    if (cached.size >= 64) cached.delete(cached.keys().next().value!);
+    cached.set(source, { url });
+    return url;
+  } catch (error) {
+    if (cached.size >= 64) cached.delete(cached.keys().next().value!);
+    cached.set(source, { error: error instanceof Error ? error.message : String(error) });
+    throw error;
+  }
 }

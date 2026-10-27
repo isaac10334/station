@@ -1,504 +1,80 @@
-import { WidgetRemovalActions } from "./components/workspace/widget-removal-actions";
+import { InlineEdit } from "./components/ui/inline-edit";
+import { WidgetInstanceEditor } from "./components/workspace/widget-instance-editor";
 import { DockInspector } from "./docking/inspector";
-/**
- * The dashboard renders widget instances from the controlled dock document.
- * Catalog drops create instances; each widget's back configures only its own slot.
- *
- * @example
- * <Dashboard workspace={workspace} />
- */
-import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
 import { ScrollArea } from "./components/ui/scroll-area";
-import {
-  ExternalLink,
-  FlipHorizontal2,
-  LayoutGrid,
-  PanelBottom,
-  PanelLeft,
-  RotateCcw,
-  X,
-} from "lucide-react";
-import {
-  DockSurface,
-  DockOwnedLayout,
-  WidgetDragHandle,
-  useDockController,
-} from "./docking/react";
-import { panelSurface, panelSlot, type Panel } from "../core/docking";
-import { revealPresentation } from "./docking/presentations";
-import { WIDGET_CATALOG, WidgetView, type WidgetActions } from "./widget-views";
-import type { Workspace } from "../core/model";
+import { DockSurface, useDockController } from "./docking/react";
+import { isLayoutPanel, type Panel } from "../core/docking";
+import { WidgetView, type WidgetActions } from "./widget-views";
+import type { Workspace } from "../core/workspace-state";
 import { WebWidgetInstance } from "./web-widget-instance";
-import type { WidgetTone, WidgetSize, StackMode } from "../core/panel-layout";
-
-function useWidgetFlip() {
-  const [flipped, setFlipped] = useState(false);
-  const section = useRef<HTMLElement>(null);
-  const mounted = useRef(false);
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    let cancelled = false;
-    const frame = requestAnimationFrame(async () => {
-      const id = section.current?.closest<HTMLElement>(
-        "[data-presentation-owner]",
-      )?.dataset.presentationOwner;
-      if (flipped && id) await revealPresentation(id);
-      if (!cancelled)
-        section.current
-          ?.querySelector<HTMLElement>(
-            flipped ? ".widget-back button" : ".widget-settings-trigger",
-          )
-          ?.focus({ preventScroll: true });
-    });
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
-    };
-  }, [flipped]);
-  return { flipped, setFlipped, section };
-}
+import { WidgetFrame, type WidgetFrameProps } from "./components/workspace/widget-frame";
+import { LayoutWidget } from "./components/workspace/layout-widget";
+import { useRef, useState } from "react";
+import { DashboardControls } from "./components/workspace/dashboard-controls";
 
 /** A home surface contains the widget grid; placement lives in the dock document. */
-export function Dashboard({ workspace }: { workspace: Workspace }) {
-  const { editingWidgets, setEditingWidgets } = useDockController();
+export function Dashboard({ workspace, onRename }: { workspace: Workspace; onRename: (name: string) => void }) {
+  const { editingWidgets, setEditingWidgets, command, openCatalog } = useDockController();
+  const width = workspace.dock.dashboardWidth ?? 100;
+  const [preview, setPreview] = useState<number | null>(null);
+  const drag = useRef<{ x: number; width: number; available: number; next: number } | null>(null);
+  const clamp = (value: number) => Math.round(Math.max(40, Math.min(100, value)));
+  const commit = (percent: number) => command({ type: "resizeDashboard", percent: clamp(percent) });
   return (
-    <div className="dashboard">
+    <div className="dashboard relative">
       <div className="dashboard-heading">
-        <div>
-          <h1>{workspace.name}</h1>
-          <p>{workspace.description || "A local space for building assets."}</p>
+        <div className="min-w-0">
+          <h1><InlineEdit label="workspace name" value={workspace.name} validate={value => !value.trim() ? "Enter a workspace name" : value.length > 120 ? "Use at most 120 characters" : undefined} onCommit={value => onRename(value)} /></h1>
+          {workspace.description && workspace.description !== "Local asset workspace" && <p>{workspace.description}</p>}
         </div>
-        <button
-          type="button"
-          className="station-edit-widgets"
-          aria-pressed={editingWidgets}
-          onClick={() => setEditingWidgets(!editingWidgets)}
-        >
-          {editingWidgets ? "Done editing" : "Edit widgets"}
-        </button>
+        <DashboardControls width={width} editing={editingWidgets} onWidth={commit} onEditing={setEditingWidgets} onAdd={() => openCatalog({ surface: "dashboard", intent: "append" })} />
       </div>
+      {editingWidgets && <p role="status" className="mb-5 text-xs leading-relaxed text-fg-3">Drag a heading to move a widget. Use its × to remove it. Drag the right edge to adjust content width, or press Escape to finish.</p>}
+      <div className="relative mx-auto" style={{ width: `${preview ?? width}%`, minWidth: "min(100%, 28rem)" }}>
       <DockSurface surface="dashboard" />
+      {editingWidgets && <div role="separator" tabIndex={0} aria-label="Resize dashboard width" aria-orientation="vertical" aria-valuemin={40} aria-valuemax={100} aria-valuenow={preview ?? width}
+        className="absolute -right-2 top-0 bottom-0 min-h-16 w-3 cursor-col-resize touch-none rounded border-r border-line-2 focus-visible:outline focus-visible:outline-focus-ring"
+        onPointerDown={e => { if (e.button !== 0) return; const available = e.currentTarget.parentElement!.parentElement!.getBoundingClientRect().width; drag.current = { x: e.clientX, width, available, next: width }; e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.focus(); e.preventDefault(); }}
+        onPointerMove={e => { const d = drag.current; if (!d) return; d.next = clamp(d.width + (e.clientX - d.x) * 200 / d.available); setPreview(d.next); }}
+        onPointerUp={() => { if (drag.current) commit(drag.current.next); drag.current = null; setPreview(null); }}
+        onPointerCancel={() => { drag.current = null; setPreview(null); }}
+        onLostPointerCapture={() => { drag.current = null; setPreview(null); }}
+        onDoubleClick={() => commit(100)} onKeyDown={e => { if (e.key === "Escape") { drag.current = null; setPreview(null); } const next = e.key === "ArrowLeft" ? width - 2 : e.key === "ArrowRight" ? width + 2 : e.key === "Home" ? 40 : e.key === "End" ? 100 : null; if (next !== null) { e.preventDefault(); commit(next); } }} />}
+      </div>
     </div>
   );
 }
 
-/** Dashboard placement of authored web content; the iframe retains the same sandbox as its editor preview. */
-export function DockWebWidget({
-  panel,
-  workspace,
-  onOpen,
-}: {
+/** Authored content keeps its sandbox and host-owned recovery controls. */
+export function DockWebWidget({ panel, workspace, onOpen, frame }: {
   panel: Extract<Panel, { kind: "web-widget" }>;
   workspace: Workspace;
   onOpen: (id: string) => void;
+  frame?: Pick<WidgetFrameProps, "header" | "back">;
 }) {
-  const { command, editingWidgets, active } = useDockController();
-  const { flipped, setFlipped, section } = useWidgetFlip();
-  const reducedMotion = useReducedMotion();
-  const asset = workspace.assets.find((item) => item.id === panel.assetId);
+  const asset = workspace.assets.find(item => item.id === panel.assetId);
   if (!asset || asset.kind !== "web-content") return null;
-  return (
-    <section
-      ref={section}
-      className="dash-widget dash-widget-standard web-asset-widget"
-      data-editing={
-        (editingWidgets && !flipped && active?.panelId !== panel.id) ||
-        undefined
-      }
-      aria-label={`${asset.name} web widget`}
-    >
-      {editingWidgets && !flipped && (
-        <WidgetRemoveBadge panelId={panel.id} title={asset.name} />
-      )}
-      <motion.div
-        className="widget-flip"
-        animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }}
-        transition={{
-          duration: reducedMotion ? 0 : 0.46,
-          ease: [0.2, 0.8, 0.2, 1],
-        }}
-      >
-        <div
-          className="widget-face widget-front"
-          aria-hidden={flipped}
-          inert={flipped}
-        >
-          <div className="dash-widget-head">
-            <h2>
-              <WidgetDragHandle panelId={panel.id} title={asset.name} heading />
-            </h2>
-            <button
-              type="button"
-              className="widget-settings-trigger"
-              aria-label={`Manage ${asset.name}`}
-              title="Manage widget"
-              onClick={() => setFlipped(true)}
-            >
-              <FlipHorizontal2 size={17} />
-            </button>
-          </div>
-          <WebWidgetInstance asset={asset} />
-        </div>
-        <div
-          className="widget-face widget-back"
-          aria-hidden={!flipped}
-          inert={!flipped}
-          style={{
-            transform: reducedMotion ? "none" : "rotateY(180deg)",
-            visibility: reducedMotion
-              ? flipped
-                ? "visible"
-                : "hidden"
-              : undefined,
-          }}
-        >
-          <ScrollArea
-            className="widget-back-scroll"
-            contentClassName="widget-back-content"
-            fade={false}
-            aria-label="Widget settings"
-          >
-            <div className="widget-back-head">
-              <h2>{asset.name} settings</h2>
-              <button
-                type="button"
-                onClick={() => setFlipped(false)}
-                aria-label="Return to widget"
-                title="Return to widget"
-              >
-                <RotateCcw size={16} />
-              </button>
-            </div>
-            <div className="widget-choice">
-              <span>Source</span>
-              <div>
-                <button type="button" onClick={() => onOpen(asset.id)}>
-                  Edit source
-                </button>
-              </div>
-            </div>
-            <WidgetRemovalActions panelId={panel.id} />
-          </ScrollArea>
-        </div>
-      </motion.div>
-    </section>
-  );
+  return <WidgetFrame {...frame} panel={panel} title={panel.displayName || asset.name} onOpenSource={() => onOpen(asset.id)}><WebWidgetInstance asset={asset} /></WidgetFrame>;
 }
 
-/** A widget instance owns its size, placement, and back-side settings. */
-export function DockWidget({
-  panel,
-  workspace,
-  actions,
-}: {
+/** Layout is an ordinary widget composing the shared dock owner surface. */
+export function DockWidget({ panel, workspace, actions, frame }: {
   panel: Extract<Panel, { kind: "widget" }>;
   workspace: Workspace;
   actions: WidgetActions;
+  /** Host React composition only; overrides never enter saved instance state. */
+  frame?: Pick<WidgetFrameProps, "header" | "back">;
 }) {
-  const { command, layout, editingWidgets, active } = useDockController();
-  const item = WIDGET_CATALOG[panel.widget];
-  const { flipped, setFlipped, section } = useWidgetFlip();
-  const reducedMotion = useReducedMotion();
-  return (
-    <section
-      ref={section}
-      className={`dash-widget dash-widget-${panel.size} widget-tone-${panel.tone ?? (panel.widget === "weather" ? "blue" : panel.widget === "clock" ? "violet" : panel.widget === "stack" ? "coral" : "mint")}`}
-      data-editing={
-        (editingWidgets && !flipped && active?.panelId !== panel.id) ||
-        undefined
-      }
-      aria-label={`${item.title} widget`}
-    >
-      {editingWidgets && !flipped && (
-        <WidgetRemoveBadge panelId={panel.id} title={item.title} />
-      )}
-      <motion.div
-        className="widget-flip"
-        animate={{ rotateY: flipped && !reducedMotion ? 180 : 0 }}
-        transition={{
-          duration: reducedMotion ? 0 : 0.46,
-          ease: [0.2, 0.8, 0.2, 1],
-        }}
-      >
-        <div
-          className="widget-face widget-front"
-          aria-hidden={flipped}
-          inert={flipped}
-        >
-          <div className="dash-widget-head">
-            <h2>
-              <WidgetDragHandle panelId={panel.id} title={item.title} heading />
-            </h2>
-            <button
-              type="button"
-              className="widget-settings-trigger"
-              aria-label={`Customize ${item.title}`}
-              title="Customize widget"
-              onClick={() => setFlipped(true)}
-            >
-              <FlipHorizontal2 size={17} />
-            </button>
-          </div>
-          {panel.widget === "ai-chat" ? (
-            <div className="station-widget-content flex min-h-0 overflow-hidden">
-              <WidgetView
-                id={panel.widget}
-                instanceId={panel.id}
-                workspace={workspace}
-                actions={actions}
-              />
-            </div>
-          ) : (
-            <ScrollArea
-              className={`station-widget-content ${panel.widget === "stack" ? "station-layout-content" : ""}`}
-              contentClassName="station-widget-scroll-content"
-              fade={false}
-              aria-label={`${item.title} content`}
-            >
-              {panel.widget === "stack" ? (
-                <DockOwnedLayout ownerId={panel.id} />
-              ) : panel.widget === "docking-inspector" ? (
-                <DockInspector />
-              ) : (
-                <WidgetView
-                  id={panel.widget}
-                  instanceId={panel.id}
-                  workspace={workspace}
-                  actions={actions}
-                />
-              )}
-            </ScrollArea>
-          )}
-        </div>
-        <div
-          className="widget-face widget-back"
-          aria-hidden={!flipped}
-          inert={!flipped}
-          style={{
-            transform: reducedMotion ? "none" : "rotateY(180deg)",
-            visibility: reducedMotion
-              ? flipped
-                ? "visible"
-                : "hidden"
-              : undefined,
-          }}
-        >
-          <ScrollArea
-            className="widget-back-scroll"
-            contentClassName="widget-back-content"
-            fade={false}
-            aria-label="Widget settings"
-          >
-            <div className="widget-back-head">
-              <h2>{item.title} settings</h2>
-              <button
-                type="button"
-                onClick={() => setFlipped(false)}
-                aria-label="Return to widget"
-                title="Return to widget"
-              >
-                <RotateCcw size={16} />
-              </button>
-            </div>
-            <div className="widget-palette" role="group" aria-label="Color">
-              <span>Color</span>
-              <div>
-                {(
-                  ["blue", "violet", "coral", "mint", "slate"] as WidgetTone[]
-                ).map((tone) => (
-                  <button
-                    type="button"
-                    key={tone}
-                    className={`widget-swatch widget-swatch-${tone}`}
-                    aria-label={`${tone} color`}
-                    aria-pressed={
-                      panel.tone === tone ||
-                      (!panel.tone &&
-                        (panel.widget === "weather"
-                          ? tone === "blue"
-                          : panel.widget === "clock"
-                            ? tone === "violet"
-                            : panel.widget === "stack"
-                              ? tone === "coral"
-                              : tone === "mint"))
-                    }
-                    onClick={() =>
-                      command({
-                        type: "configureWidget",
-                        panelId: panel.id,
-                        tone,
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="widget-choice">
-              <span>Backing slot</span>
-              <div>
-                {panelSlot(layout, panel.id) && (
-                  <>
-                    <button
-                      onClick={() =>
-                        command({
-                          type: "splitSlot",
-                          nodeId: panelSlot(layout, panel.id)!.node.id,
-                          axis: "horizontal",
-                        })
-                      }
-                    >
-                      Split columns
-                    </button>
-                    <button
-                      onClick={() =>
-                        command({
-                          type: "splitSlot",
-                          nodeId: panelSlot(layout, panel.id)!.node.id,
-                          axis: "vertical",
-                        })
-                      }
-                    >
-                      Split rows
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            {panel.widget === "stack" && (
-              <div
-                className="widget-choice"
-                role="group"
-                aria-label="Child presentation"
-              >
-                <span>Child presentation</span>
-                <div>
-                  {(["tabs", "carousel"] as StackMode[]).map((mode) => (
-                    <button
-                      type="button"
-                      key={mode}
-                      aria-pressed={(panel.stackMode ?? "tabs") === mode}
-                      onClick={() =>
-                        command({
-                          type: "configureWidget",
-                          panelId: panel.id,
-                          stackMode: mode,
-                        })
-                      }
-                    >
-                      {mode === "carousel" ? "Horizontal carousel" : "Tabs"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="widget-choice" role="group" aria-label="Placement">
-              <span>Placement</span>
-              <div className="widget-placement-actions">
-                {panelSurface(layout, panel.id) ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      command({ type: "float", panelId: panel.id })
-                    }
-                  >
-                    <ExternalLink size={14} /> Float widget
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      command({ type: "dockFloat", panelId: panel.id })
-                    }
-                  >
-                    <LayoutGrid size={14} /> Return to dock
-                  </button>
-                )}
-                {panelSurface(layout, panel.id) && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        command({
-                          type: "move",
-                          panelId: panel.id,
-                          target: { surface: "sidebar", intent: "append" },
-                        })
-                      }
-                    >
-                      <PanelLeft size={14} /> Sidebar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        command({
-                          type: "move",
-                          panelId: panel.id,
-                          target: { surface: "bottom", intent: "append" },
-                        })
-                      }
-                    >
-                      <PanelBottom size={14} /> Bottom
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        command({
-                          type: "move",
-                          panelId: panel.id,
-                          target: { surface: "dashboard", intent: "append" },
-                        })
-                      }
-                    >
-                      <LayoutGrid size={14} /> Dashboard
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            <WidgetRemovalActions
-              panelId={panel.id}
-              keepChildren={panel.widget === "stack"}
-            />
-          </ScrollArea>
-        </div>
-      </motion.div>
-    </section>
-  );
-}
-
-/** Removes a placement through undoable docking history; authored source stays intact. */
-function WidgetRemoveBadge({
-  panelId,
-  title,
-}: {
-  panelId: string;
-  title: string;
-}) {
-  const { command, active } = useDockController();
-  return (
-    <button
-      type="button"
-      className="widget-remove-badge"
-      disabled={!!active}
-      aria-label={`Remove ${title} widget`}
-      title={`Remove ${title} widget`}
-      onClick={() => {
-        const result = command({ type: "close", panelId });
-        if (result.ok)
-          requestAnimationFrame(() =>
-            document
-              .querySelector<HTMLButtonElement>(
-                ".station-widget-edit-bar button",
-              )
-              ?.focus({ preventScroll: true }),
-          );
-      }}
-    >
-      <X size={14} strokeWidth={2.5} />
-    </button>
-  );
+  const { panelTitle } = useDockController();
+  const title = panelTitle(panel);
+  const content = <WidgetView id={panel.widget} instanceId={panel.id} workspace={workspace} actions={actions} />;
+  return <WidgetFrame {...frame} integratedToolbar={panel.widget === "data-view" || panel.widget === "desk-controls"} panel={panel} title={title}>
+    {isLayoutPanel(panel) ? <LayoutWidget ownerId={panel.id} className="station-widget-content station-layout-content" />
+      : panel.widget === "widget-editor" ? <WidgetInstanceEditor panelId={panel.id} />
+      : panel.widget === "docking-inspector" ? <div className="station-widget-content flex min-h-0 overflow-hidden"><DockInspector panelId={panel.id} /></div>
+        : panel.widget === "desk-controls" || panel.widget === "data-view" || panel.widget === "note" || panel.widget === "ide" || panel.widget === "desk-settings" || panel.widget === "ai-chat" || panel.widget === "browser-tab" ? <div className="station-widget-content flex min-h-0 overflow-hidden">{content}</div>
+      : <ScrollArea className="station-widget-content" contentClassName="station-widget-scroll-content" fade={false} aria-label={`${title} content`}>
+        {content}
+      </ScrollArea>}
+  </WidgetFrame>;
 }

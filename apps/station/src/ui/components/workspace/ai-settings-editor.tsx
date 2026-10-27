@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Button } from "../ui/button";
 import { EnvEditor } from "../ui/env-editor";
-import type { AISettingsStore } from "../../../services/ai-settings";
+import type { AISettingsStore } from "../../../features/ai/application/settings";
 
 export function AISettingsEditor({ settings }: { settings: AISettingsStore }) {
   const id = useId();

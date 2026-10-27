@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createComposition } from "../src/composition";
+import { createComposition } from "../src/application";
 import { createPolyengineRunner } from "../src/providers/component-runtime";
 import { REQUIRED_GRANTS } from "../src/core/component-contract";
 import {

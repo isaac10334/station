@@ -5,12 +5,13 @@ import { cn } from "../../lib/utils";
 /** A labelled icon button with the same tooltip on hover and keyboard focus. */
 export function IconAction({
   label,
+  tooltip = label,
   children,
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tooltip?: string }) {
   return (
-    <ActionTooltip label={label}>
+    <ActionTooltip label={tooltip}>
       <button
         type="button"
         {...props}

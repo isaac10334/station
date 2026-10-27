@@ -1,10 +1,16 @@
 # Assets and runtime programmability
 
-Status: exploration, October 8, 2026. Only the terminology rename and its compatibility migration are implemented by this change. This is a proposed direction and a record of open product questions, not an SDK or runtime specification.
+Status: historical exploration, October 8, 2026. The evidence and proposed sequence
+below describe that snapshot, not current implementation. Accounts, packages,
+themes, AI authoring and native hosting have since advanced; use the
+[core-system review](../core-systems-review.md), [state and vocabulary](../state-and-assets.md)
+and [documentation index](../README.md) for their current contracts. Retained here
+for unresolved product questions and remote-provider/consent directions, not as
+an active roadmap or SDK/runtime specification.
 
 Station should make creating, installing, editing and using extensions ordinary workspace operations. It is a concrete Loop Kit host, with a small trusted core and replaceable contributions. AI-assisted asset creation is a particularly useful next vertical slice.
 
-## Current evidence
+## Evidence at the October 8 checkpoint
 
 - Assets currently have two kinds: Rust/WIT Component projects and authored HTML web content. They live in browser storage; there is no account-backed asset service or real account authentication yet.
 - Component source builds from the browser through the Bun server and Vercel Sandbox. Compilation is remote; inspected P3 bytes execute in a fixed browser worker with futures/streams and bounded host effects. A browser-only offline compiler is not implemented.

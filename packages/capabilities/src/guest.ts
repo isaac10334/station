@@ -15,6 +15,14 @@ export interface EditorSession {
   rename(from: string, to: string): Promise<void>;
   diagnostics(): Promise<Json[]>;
 }
+/** Metadata-only contract. The host binds permitted asset IDs and checks revision
+ * preconditions on every write; acquiring a handle does not authorize arbitrary IDs.
+ */
+export interface AssetMetadata {
+  get(assetId: string): Promise<{ id: string; name: string; description: string; kind: string; revision: number; version: { epoch: string; revision: number } }>;
+  version(): Promise<{ epoch: string; revision: number }>;
+  patch(assetId: string, patch: { name?: string; description?: string }, version: { epoch: string; revision: number }): Promise<void>;
+}
 export interface CapabilityHandle<T> {
   value: T;
   subscribe(listener: (value: Json) => void): Promise<() => void>;

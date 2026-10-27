@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Workspace } from "../../../core/model";
+import type { Workspace } from "../../../core/workspace-state";
 import { deps } from "../../../composition";
 import { widgetDefinitions } from "../../widget-catalog";
 import { Input } from "../ui/input";
@@ -46,12 +46,12 @@ export function DeskWidgetSettings({
         const items = visible.filter((item) => item.provider === provider);
         if (!items.length) return null;
         return (
-          <section
+          <details open
             key={provider}
             className="flex flex-col gap-1"
             aria-label={title}
           >
-            <h3 className="pb-1 text-xs font-medium text-fg-2">{title}</h3>
+            <summary className="cursor-pointer py-2 text-xs font-medium text-fg-2">{title} · {items.length}</summary>
             {items.map((item) => (
               <Switch
                 key={item.id}
@@ -71,7 +71,7 @@ export function DeskWidgetSettings({
                 }}
               />
             ))}
-          </section>
+          </details>
         );
       })}
       {!visible.length && (

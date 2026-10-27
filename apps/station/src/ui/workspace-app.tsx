@@ -1,9 +1,28 @@
-import type { CSSProperties } from "react";
+import { DeskScene } from "./components/workspace/desk-scene";
+import { builtinIconAssets } from "../core/builtin-icons";
+import { shellCommandGroups } from "./components/workspace/shell-command-groups";
+import { shellActions, createActionRouter, navigationAvailable } from '../features/shell/application/actions';
+import { shellActionImplementations } from '../features/shell/application/action-controller';
+import { actionState, matchesActionShortcut } from '@loop-kit/ui';
+import { SemanticThemeProvider } from './semantic-theme';
+import { createPaletteController } from '../features/shell/application/palette';
+import { SemanticActionButton, SemanticActionMenuItem } from './components/ui/semantic-action';
+import { resolveSlotReference } from "../core/docking";
+import { WidgetFrame } from "./components/workspace/widget-frame";
+import {
+  builtinDeskTemplates,
+  isBuiltinDeskTemplate,
+} from "../core/desk-templates";
+import { AppShellWidget } from "./components/workspace/app-shell-widget";
+import {
+  builtinWidgetAssets,
+  isBuiltinWidgetAsset,
+} from "../core/widget-definitions";
 import { IconAction } from "./components/ui/icon-action";
 import { revealPresentation } from "./docking/presentations";
 import { widgetDefinitions, definitionForPanel } from "./widget-catalog";
 import { WidgetBrowser } from "./widget-browser";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,24 +42,19 @@ import {
   Undo2,
   Redo2,
 } from "lucide-react";
-import { demoSession, deps } from "../composition";
+import type { ShellPorts, ShellWorkspacePort } from "../features/shell/application/ports";
+import type { Overlay } from "../features/shell/application/overlays";
+import { OverlayHost } from "./components/workspace/shell-overlays";
+import { createNavigationHistory } from "../features/navigation/application/history";
 import { Dashboard, DockWebWidget, DockWidget } from "./dashboard";
 import { CommandOutput } from "./components/workspace/command-output";
 import { installedDefinitions } from "../core/contribution-catalog";
 import { AssetEditor } from "./components/workspace/asset-editor";
 import { ContributionView } from "./contribution-view";
-import { DeskControls } from "./components/workspace/desk-controls";
 import { ThemeAssets } from "./theme-runtime";
 import { EditorPart } from "./components/workspace/editor-workspace";
-import {
-  DockBottomEdge,
-  DockFloatingPanels,
-  DockHost,
-  DockMainTabs,
-  DockMobileSurface,
-  DockSurface,
-  useDockController,
-} from "./docking/react";
+import { RichTextAssetsContext } from "./components/ui/rich-text-editor";
+import { DockHost, useDockController } from "./docking/react";
 import {
   BROWSER_ID,
   HOME_ID,
@@ -58,11 +72,6 @@ import { type WidgetActions } from "./widget-views";
 import { Onboarding, type DemoIdentity } from "./onboarding";
 import { WorkspaceSwitcher } from "./components/ui/workspace-switcher";
 import {
-  Panel,
-  PanelGroup,
-  PanelHandle,
-} from "./components/ui/resizable-panels";
-import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -71,22 +80,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./components/ui/dialog";
-import { type CommandGroup } from "./components/ui/command-palette";
 import { WorkspacePalette } from "./components/workspace/workspace-palette";
-import { SideDockResize } from "./components/workspace/side-dock-resize";
 import { WorkspaceNavigation } from "./components/workspace/workspace-navigation";
-import { MainSurfaceToolbar } from "./components/workspace/main-surface-toolbar";
+
+import { MainSurfaceToolbar, BuiltinToolbarTool } from "./components/workspace/main-surface-toolbar";
 import {
   workspaceSearchItems,
   type WorkspaceSearchItem,
 } from "./workspace-search";
 import { NotificationInbox } from "./components/ui/notification-inbox";
 import { UserMenu, UserMenuItem } from "./components/ui/user-menu";
+import { AccountSettings } from "./components/workspace/account-settings";
+import { Button } from "./components/ui/button";
+import { accountClient } from "../services/account-client";
+import { useAccount } from "./lib/use-account";
 import { ThemeToggle, changeTheme } from "./components/ui/theme-toggle";
-import { ShortcutsSheet } from "./components/ui/shortcuts-sheet";
-import type { State, Workspace } from "../core/model";
+import { ShortcutHost } from "./components/workspace/shortcut-host";
+import { ShortcutSettings } from "./components/workspace/shortcut-settings";
+import { DEFAULT_SHORTCUTS } from "../core/shortcuts";
+import type { State, Workspace } from "../core/workspace-state";
 
-const { store } = deps;
 function activeMainPanel(layout: DockLayout): string {
   let active = HOME_ID;
   visitNode(layout.surfaces.main, (node) => {
@@ -94,15 +107,9 @@ function activeMainPanel(layout: DockLayout): string {
   });
   return active;
 }
-function useStore(): State {
-  const [state, setState] = useState(store.get());
-  useEffect(() => {
-    const unsubscribe = store.subscribe(() => setState(store.get()));
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-  return state;
+function useStore(store: Pick<ShellWorkspacePort, "get" | "subscribe">): State {
+  // Child effects can initialize owned layouts before the shell's first subscription.
+  return useSyncExternalStore(store.subscribe, store.get, store.get);
 }
 
 function WidgetCatalog() {
@@ -120,359 +127,39 @@ function WidgetCatalog() {
   );
 }
 
-type Overlay =
-  | null
-  | {
-      kind: "create";
-      target: "component" | "web-content" | "theme" | "package" | "workspace";
-    }
-  | { kind: "rename"; assetId: string }
-  | { kind: "restore"; assetId: string }
-  | { kind: "delete"; assetIds: string[]; workspaceId: string }
-  | { kind: "settings" };
-/** Transient dialog host. Neither dialog visibility nor input drafts enter the layout document. */
-function OverlayHost({
-  overlay,
-  setOverlay,
-  workspace,
-  state,
-  onContinue,
-}: {
-  overlay: Overlay;
-  setOverlay: (next: Overlay) => void;
-  workspace: Workspace;
-  state: State;
-  onContinue?: (identity: DemoIdentity) => void;
-}) {
-  const [name, setName] = useState("");
-  useEffect(() => {
-    if (overlay?.kind === "rename")
-      setName(
-        workspace.assets.find((asset) => asset.id === overlay.assetId)?.name ??
-          "",
-      );
-    else setName("");
-  }, [overlay?.kind, overlay?.kind === "rename" ? overlay.assetId : ""]);
-  const [settingsTab, setSettingsTab] = useState<"workspace" | "app">(
-    "workspace",
-  );
-  const close = () => setOverlay(null);
-  return (
-    <>
-      <Dialog
-        open={Boolean(overlay)}
-        onOpenChange={(open) => {
-          if (!open) close();
-        }}
-      >
-        {overlay && (
-          <DialogContent
-            size={overlay.kind === "settings" ? "lg" : "sm"}
-            className="workspace-dialog"
-          >
-            {overlay.kind === "create" && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const value = name.trim();
-                  if (!value) return;
-                  if (overlay.target === "workspace")
-                    store.createWorkspace(value);
-                  else {
-                    const id =
-                      overlay.target === "web-content"
-                        ? store.createWebAsset(value)
-                        : overlay.target === "theme" ||
-                            overlay.target === "package"
-                          ? store.createDataAsset(overlay.target, value)
-                          : store.createAsset(value);
-                    store.dispatchDock({ type: "openAsset", assetId: id });
-                  }
-                  close();
-                }}
-              >
-                <DialogHeader>
-                  <DialogTitle>
-                    New{" "}
-                    {
-                      {
-                        component: "Component",
-                        "web-content": "web content",
-                        theme: "theme",
-                        package: "package",
-                        workspace: "workspace",
-                      }[overlay.target]
-                    }
-                  </DialogTitle>
-                  <DialogDescription>
-                    {
-                      {
-                        component: "Start with a Rust and WIT source project.",
-                        "web-content":
-                          "Create a TypeScript web project with an isolated preview.",
-                        theme: "Edit semantic theme tokens as data.",
-                        package:
-                          "Declare widgets, editors, commands and themes from your assets.",
-                        workspace:
-                          "Create a separate space for assets and desks.",
-                      }[overlay.target]
-                    }
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogBody>
-                  <label className="field-label" htmlFor="new-name">
-                    Name
-                  </label>
-                  <input
-                    id="new-name"
-                    autoFocus
-                    value={name}
-                    onChange={(event) => setName(event.currentTarget.value)}
-                    placeholder={
-                      overlay.target === "component"
-                        ? "My Component"
-                        : overlay.target === "web-content"
-                          ? "My Widget"
-                          : "My Workspace"
-                    }
-                  />
-                </DialogBody>
-                <DialogFooter>
-                  <button type="button" className="secondary" onClick={close}>
-                    Cancel
-                  </button>
-                  <button className="primary" type="submit">
-                    Create
-                  </button>
-                </DialogFooter>
-              </form>
-            )}
-            {overlay.kind === "rename" && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (name.trim())
-                    store.renameAsset(overlay.assetId, name.trim());
-                  close();
-                }}
-              >
-                <DialogHeader>
-                  <DialogTitle>Rename asset</DialogTitle>
-                  <DialogDescription>
-                    Change its display name. Source and artifact identity stay
-                    the same.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogBody>
-                  <label className="field-label" htmlFor="rename-name">
-                    Name
-                  </label>
-                  <input
-                    id="rename-name"
-                    autoFocus
-                    value={name}
-                    onChange={(event) => setName(event.currentTarget.value)}
-                  />
-                </DialogBody>
-                <DialogFooter>
-                  <button type="button" className="secondary" onClick={close}>
-                    Cancel
-                  </button>
-                  <button className="primary" type="submit">
-                    Rename
-                  </button>
-                </DialogFooter>
-              </form>
-            )}
-            {overlay.kind === "restore" && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>Restore Greeting sample?</DialogTitle>
-                  <DialogDescription>
-                    This replaces edited source with the bundled Rust and WIT
-                    project. Build it again to run.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <button className="secondary" onClick={close}>
-                    Cancel
-                  </button>
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      store.resetSample(overlay.assetId);
-                      close();
-                    }}
-                  >
-                    Restore sample
-                  </button>
-                </DialogFooter>
-              </>
-            )}
-            {overlay.kind === "delete" && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>
-                    Delete{" "}
-                    {overlay.assetIds.length === 1
-                      ? (workspace.assets.find(
-                          (asset) => asset.id === overlay.assetIds[0],
-                        )?.name ?? "asset")
-                      : `${overlay.assetIds.length} assets`}
-                    ?
-                  </DialogTitle>
-                  <DialogDescription>
-                    This removes the selected assets and their open views from
-                    this workspace. This cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <button className="secondary" autoFocus onClick={close}>
-                    Cancel
-                  </button>
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      if (store.active().id === overlay.workspaceId)
-                        store.deleteAssets(overlay.assetIds);
-                      close();
-                    }}
-                  >
-                    Delete {overlay.assetIds.length === 1 ? "asset" : "assets"}
-                  </button>
-                </DialogFooter>
-              </>
-            )}
-            {overlay.kind === "settings" && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>Settings</DialogTitle>
-                  <DialogDescription>
-                    Workspace preferences and app appearance.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogBody>
-                  <div className="settings-layout">
-                    <nav className="settings-sidebar">
-                      <button
-                        className={settingsTab === "workspace" ? "active" : ""}
-                        onClick={() => setSettingsTab("workspace")}
-                      >
-                        <Folder size={15} /> Workspace
-                      </button>
-                      <button
-                        className={settingsTab === "app" ? "active" : ""}
-                        onClick={() => setSettingsTab("app")}
-                      >
-                        <Settings2 size={15} /> App
-                      </button>
-                    </nav>
-                    <div className="settings-body">
-                      {settingsTab === "workspace" ? (
-                        <>
-                          <h3>Current workspace</h3>
-                          <label
-                            className="field-label"
-                            htmlFor="workspace-name"
-                          >
-                            Name
-                          </label>
-                          <input
-                            id="workspace-name"
-                            value={workspace.name}
-                            onChange={(event) =>
-                              store.renameWorkspace(event.currentTarget.value)
-                            }
-                          />
-                          <label
-                            className="field-label"
-                            htmlFor="workspace-description"
-                          >
-                            Description
-                          </label>
-                          <textarea
-                            id="workspace-description"
-                            rows={3}
-                            value={workspace.description}
-                            onChange={(event) =>
-                              store.describeWorkspace(event.currentTarget.value)
-                            }
-                          />
-                          <div className="setting-row">
-                            <span>Assets</span>
-                            <strong>{workspace.assets.length}</strong>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <h3>Appearance</h3>
-                          <div className="setting-row">
-                            <label htmlFor="app-theme">Theme</label>
-                            <select
-                              id="app-theme"
-                              value={state.app.theme}
-                              onChange={(event) =>
-                                changeTheme(
-                                  event.currentTarget
-                                    .value as State["app"]["theme"],
-                                  (theme) => store.patchApp({ theme }),
-                                  event.currentTarget,
-                                )
-                              }
-                            >
-                              <option value="dark">Dark</option>
-                              <option value="light">Light</option>
-                              <option value="system">System</option>
-                            </select>
-                          </div>
-                          <div className="setting-row">
-                            <label htmlFor="app-density">Density</label>
-                            <select
-                              id="app-density"
-                              value={state.app.density}
-                              onChange={(event) =>
-                                store.patchApp({
-                                  density: event.currentTarget
-                                    .value as State["app"]["density"],
-                                })
-                              }
-                            >
-                              <option value="compact">Compact</option>
-                              <option value="comfortable">Comfortable</option>
-                            </select>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </DialogBody>
-              </>
-            )}
-          </DialogContent>
-        )}
-      </Dialog>
-      {onContinue && <Onboarding onContinue={onContinue} />}
-    </>
-  );
-}
-
-export function WorkspaceApp() {
-  const state = useStore();
+export function WorkspaceApp({ ports }: { ports: ShellPorts }) {
+  const { workspace: store, commands: control, capabilities, session: demoSession } = ports;
+  const commandOwner = (method: string, params: unknown) => control.execute({ method, params, version: control.version() });
+  const state = useStore(store);
   const workspace = state.workspaces.find(
     (item) => item.id === state.activeWorkspaceId,
   )!;
+  const definitions = useMemo(
+    () => widgetDefinitions(workspace.assets, workspace),
+    [workspace],
+  );
+  const browsableAssets = useMemo(
+    () => [
+      ...workspace.assets,
+      ...builtinWidgetAssets(), ...builtinIconAssets(),
+      ...builtinDeskTemplates(),
+    ],
+    [workspace.assets],
+  );
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [bottomOpen, setBottomOpen] = useState(
     () => !workspace.dock.hidden.bottom,
   );
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [paletteQuery, setPaletteQuery] = useState("");
+  const palette = useMemo(()=>createPaletteController(),[]);
+  const {open:paletteOpen,query:paletteQuery}=useSyncExternalStore(palette.subscribe,palette.getSnapshot,palette.getSnapshot);
+  useEffect(()=>()=>palette.dispose(),[palette]);
+  const setPaletteOpen=(open:boolean)=>palette.dispatch({type:open?'open':'close'});
+  const setPaletteQuery=(query:string)=>palette.dispatch({type:'query',query});
+  const openShortcuts = () => setOverlay({ kind: "settings", section: "shortcuts" });
 
   const [, setNavRevision] = useState(0);
-  const navigation = useRef(
-    new Map<string, { back: string[]; current: string; forward: string[] }>(),
-  );
+  const navigation = useMemo(() => createNavigationHistory(), []);
+  useEffect(() => () => navigation.dispose(), [navigation]);
   const [runRequest, setRunRequest] = useState<{
     assetId: string;
     token: number;
@@ -480,6 +167,8 @@ export function WorkspaceApp() {
   const [identity, setIdentity] = useState<DemoIdentity | null>(() =>
     demoSession.get(),
   );
+  const cloudAccount = useAccount();
+  const [accountOpen, setAccountOpen] = useState(false);
   const [selectedBrowserIds, setSelectedBrowserIds] = useState<string[]>([]);
   const [browserQuery, setBrowserQuery] = useState("");
   const [browserFilters, setBrowserFilters] = useState<string[]>([]);
@@ -554,18 +243,8 @@ export function WorkspaceApp() {
           ? next.panelId
           : (result.panelId ?? `asset-view:${next.assetId}`);
       if (panelSurface(result.layout, id) === "main") {
-        const history = navigation.current.get(workspace.id) ?? {
-          back: [],
-          current: activeMainPanel(workspace.dock),
-          forward: [],
-        };
-        if (history.current !== id) {
-          history.back.push(history.current);
-          history.current = id;
-          history.forward = [];
-          navigation.current.set(workspace.id, history);
-          setNavRevision((value) => value + 1);
-        }
+        navigation.record(workspace.id, activeMainPanel(workspace.dock), id);
+        setNavRevision(value => value + 1);
       }
     }
     if (result.ok && "target" in next) {
@@ -605,29 +284,11 @@ export function WorkspaceApp() {
       )
       ?.focus({ preventScroll: true });
   }
-  const nav = navigation.current.get(workspace.id) ?? {
-    back: [],
-    current: activeMainPanel(workspace.dock),
-    forward: [],
-  };
+  const nav = navigation.get(workspace.id, activeMainPanel(workspace.dock));
   function navigate(direction: "back" | "forward") {
-    const history = navigation.current.get(workspace.id) ?? {
-      back: [],
-      current: activeMainPanel(workspace.dock),
-      forward: [],
-    };
-    const source = direction === "back" ? history.back : history.forward;
-    const destination = direction === "back" ? history.forward : history.back;
-    while (source.length) {
-      const id = source.pop()!;
-      if (panelSurface(store.active().dock, id) !== "main") continue;
-      destination.push(history.current);
-      history.current = id;
-      navigation.current.set(workspace.id, history);
-      store.dispatchDock({ type: "activate", panelId: id });
-      setNavRevision((value) => value + 1);
-      break;
-    }
+    const id = navigation.move(workspace.id, activeMainPanel(workspace.dock), direction,
+      id => panelSurface(store.active().dock, id) === "main");
+    if (id) { store.dispatchDock({ type: "activate", panelId: id }); setNavRevision(value => value + 1); }
   }
   const browserSurface = panelSurface(workspace.dock, BROWSER_ID);
   function toggleBrowser() {
@@ -695,51 +356,19 @@ export function WorkspaceApp() {
     );
     await revealPresentation(id);
   }
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (
-        target.closest(
-          "input,textarea,select,[contenteditable],.cm-editor,[role=dialog],[role=application],canvas",
-        ) ||
-        event.altKey
-      )
-        return;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
-        event.preventDefault();
-        event.shiftKey ? store.redoLayout() : store.undoLayout();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {
-        event.preventDefault();
-        store.redoLayout();
-        return;
-      }
-      if (event.ctrlKey || event.metaKey) return;
-      if (event.shiftKey && event.key.toLowerCase() === "w") {
-        event.preventDefault();
-        toggleBrowser();
-      }
-      if (event.shiftKey && event.key.toLowerCase() === "q") {
-        event.preventDefault();
-        command({
-          type: "visibility",
-          surface: "sidebar",
-          hidden: !workspace.dock.hidden.sidebar,
-        });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    browserSurface,
-    narrow,
-    bottomOpen,
-    workspace.id,
-    workspace.dock.hidden.sidebar,
-  ]);
   const actions: WidgetActions = {
-    capabilities: deps,
+    onCaptureRecord: (assetId, revision, text) => { commandOwner('capture.create', { assetId, expectedAssetRevision: revision, text }); },
+    onConfigureCapture: (assetId, revision, configuration) => { commandOwner('capture.configure', { assetId, expectedAssetRevision: revision, configuration }); },
+    capabilities,
+    onCreateDataAsset: (kind, name) => store.createDataAsset(kind, name),
+    onCanEditSource: store.canEditSource,
+    onSaveNoteAsset: (assetId, path, source, expected) => {
+      const current = store.active().assets.find(asset => asset.id === assetId);
+      if (!current || current.files?.[path] !== expected) throw new Error("Saved note changed. Reload before saving.");
+      commandOwner("asset.files.patch", { assetId, expectedAssetRevision: current.revision, patch: { [path]: source } });
+    },
+    onConfigureBrowser: (panelId, config) =>
+      command({ type: "configureBrowser", panelId, config }),
     onOpenAsset: (id) => command({ type: "openAsset", assetId: id }),
     onOpenRun: (id) => {
       setRunRequest((previous) => ({
@@ -751,10 +380,32 @@ export function WorkspaceApp() {
     onOpenBrowser: openBrowser,
     onNewAsset: () => showOverlay({ kind: "create", target: "component" }),
     onGrant: store.setGrant,
+    onSearchCommands: () => openPalette(">"),
   };
   const activePanelId = activeMainPanel(workspace.dock);
   const activePanel = workspace.dock.panels[activePanelId];
-  function renderPanel(panel: DockPanel) {
+  function renderPanel(panel: DockPanel): import("react").ReactNode {
+    if (
+      panel.kind === "widget" &&
+      ["navigation", "asset-browser"].includes(panel.widget)
+    )
+      return (
+        <WidgetFrame
+          panel={panel}
+          title={
+            panel.displayName ||
+            (panel.widget === "navigation" ? "Navigation" : "Asset browser")
+          }
+        >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {renderPanel({
+              ...panel,
+              kind: panel.widget === "navigation" ? "navigation" : "browser",
+            } as DockPanel)}
+          </div>
+        </WidgetFrame>
+      );
+
     if (panel.kind === "command-output")
       return (
         <CommandOutput
@@ -768,21 +419,41 @@ export function WorkspaceApp() {
     if (panel.kind === "navigation")
       return (
         <WorkspaceNavigation
-          key={workspace.id}
+          onToggleBrowser={toggleBrowser}
+          panelId={panel.id}
+          onInitialize={() => commandOwner("navigation.initialize", {panelId:panel.id})}
+          initialized={panel.navigation?.areasInitialized}
+          key={`${workspace.id}/${panel.id}`}
           workspaceId={workspace.id}
-          items={searchItems}
-          filter={workspace.navigation}
-          onFilterChange={store.setNavigation}
+          items={panel.targetRef ? searchItems.filter(item => item.kind === "assets" || (item.panelId && resolveSlotReference(workspace.dock, panel.targetRef!)?.tabs.includes(item.panelId))) : searchItems}
+          targetError={panel.targetRef && !resolveSlotReference(workspace.dock, panel.targetRef) ? "Target slot is missing. Choose a target in widget settings." : undefined}
+          filter={panel.navigation?.filter??workspace.navigation}
+          presentation={panel.navigation?.presentation??'list'}
+          onPresentationChange={presentation=>commandOwner('navigation.configure',{panelId:panel.id,presentation})}
+          onFilterChange={filter=>commandOwner('navigation.configure',{panelId:panel.id,filter})}
+          onSaveDefinition={()=>commandOwner('navigation.saveDefinition',{panelId:panel.id,name:'Navigation variant'})}
           activePanelId={activePanelId}
           activeAssetId={
             activePanel?.kind === "asset" ? activePanel.assetId : undefined
           }
-          onOpen={(item) => void openSearchItem(item)}
+          onOpen={(item) => {
+            if(item.assetId)commandOwner('navigation.configure',{panelId:panel.id,selectedAssetId:item.assetId});
+            if (!panel.targetRef) { void openSearchItem(item); return; }
+            const slot = resolveSlotReference(workspace.dock, panel.targetRef);
+            if (!slot) { console.warn("Navigation target is missing. Choose a target in widget settings."); return; }
+            if (item.assetId) {
+              const existing = slot.tabs.find(id => { const p = workspace.dock.panels[id]; return p?.kind === "asset" && p.assetId === item.assetId; });
+              if (existing) command({ type: "activate", panelId: existing });
+              else command({ type: "createAssetView", assetId: item.assetId, target: { ...panel.targetRef, intent: "tab" } });
+            } else if (item.panelId && slot.tabs.includes(item.panelId)) command({ type: "activate", panelId: item.panelId });
+          }}
           onSearch={() => openPalette("search: ")}
           header={
             <>
-              <span className="station-brand">Station</span>
               <WorkspaceSwitcher
+                onSettings={() => showOverlay({ kind: "settings" })}
+                onDelete={() => showOverlay({ kind: "delete-workspace", workspaceId: workspace.id })}
+                canDelete={state.workspaces.length > 1}
                 shortcut="alt"
                 workspaces={state.workspaces.map((item) => ({
                   id: item.id,
@@ -800,19 +471,11 @@ export function WorkspaceApp() {
               />
             </>
           }
-          footer={
-            <button
-              type="button"
-              className="flex min-h-9 items-center gap-2 rounded-lg px-3 text-left text-xs text-fg-3 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-3"
-              onClick={() => showOverlay({ kind: "settings" })}
-            >
-              <Settings2 size={14} /> Settings
-            </button>
-          }
+
         />
       );
-    if (panel.kind === "home") return <Dashboard workspace={workspace} />;
-    if (panel.kind === "widget")
+    if (panel.kind === "home") return <Dashboard onRename={store.renameWorkspace} workspace={workspace} />;
+    if (panel.kind === "widget" && panel.widget !== "asset-browser")
       return (
         <DockWidget panel={panel} workspace={workspace} actions={actions} />
       );
@@ -825,7 +488,7 @@ export function WorkspaceApp() {
         />
       );
     if (panel.kind === "asset") {
-      const asset = workspace.assets.find((item) => item.id === panel.assetId);
+      const asset = browsableAssets.find((item) => item.id === panel.assetId);
       return asset ? (
         <AssetEditor
           asset={asset}
@@ -842,15 +505,35 @@ export function WorkspaceApp() {
     }
     return (
       <AssetBrowser
+        workspace={workspace}
+        onFork={asset => { const result = control.execute({ method: "asset.fork", params: { assetId: asset.id, name: `${asset.name.slice(0, 108)} variant` } }).result; setSelectedBrowserIds([result.id]); command({ type: "openAsset", assetId: result.id }); }}
         workspaceId={workspace.id}
         workspaceName={workspace.name}
-        assets={workspace.assets}
+        assets={browsableAssets}
+        onPatchMetadata={(assetId, patch) => {
+          control.execute({
+            method: "asset.metadata",
+            params: { assetId, patch },
+          });
+        }}
+        canEdit={store.canEditSource}
+        groups={workspace.assetGroups ?? []}
+        onGroupsChange={store.setAssetGroups}
         selected={selectedBrowserIds}
         onSelectedChange={setSelectedBrowserIds}
         onOpen={(id) => command({ type: "openAsset", assetId: id })}
-        onNew={(kind) => showOverlay({ kind: "create", target: kind })}
-        onRename={(assetId) => showOverlay({ kind: "rename", assetId })}
-        onDelete={requestDelete}
+        onNew={(kind, scriptMode) => showOverlay({ kind: "create", target: kind, scriptMode })}
+        onRename={(assetId) => {
+          if (!isBuiltinWidgetAsset(assetId) && !isBuiltinDeskTemplate(assetId))
+            showOverlay({ kind: "rename", assetId });
+        }}
+        onDelete={(ids) =>
+          requestDelete(
+            ids.filter(
+              (id) => !isBuiltinWidgetAsset(id) && !isBuiltinDeskTemplate(id),
+            ),
+          )
+        }
         view={workspace.dock.browserView}
         onViewChange={(view) => command({ type: "browserView", view })}
         query={browserQuery}
@@ -861,138 +544,36 @@ export function WorkspaceApp() {
       />
     );
   }
-  const paletteActions: CommandGroup[] = [
-    {
-      heading: "Installed commands",
-      items: installedDefinitions(workspace)
-        .filter((item) => item.contribution.role === "command")
-        .map((item) => ({
-          id: `command:${item.id}`,
-          label: item.contribution.title,
-          onSelect: () => {
-            command({
-              type: "createCommandOutput",
-              definitionId: item.id,
-              target: { surface: "main", intent: "tab" },
-            });
-          },
-        })),
-    },
-    {
-      heading: "Navigate",
-      items: [
-        {
-          id: "overview",
-          label: "Open overview",
-          icon: <LayoutGrid size={16} />,
-          onSelect: () => revealPanel(HOME_ID),
-        },
-        {
-          id: "browser",
-          label: "Toggle asset browser",
-          icon: <Box size={16} />,
-          shortcut: "shift+w",
-          onSelect: toggleBrowser,
-        },
-        {
-          id: "settings",
-          label: "Open settings",
-          icon: <Settings2 size={16} />,
-          onSelect: () => showOverlay({ kind: "settings" }),
-        },
-        {
-          id: "inspector",
-          label: "Open docking inspector",
-          icon: <LayoutGrid size={16} />,
-          onSelect: openInspector,
-        },
-        {
-          id: "sidebar-side",
-          label: `Move sidebar ${workspace.dock.sidebarSide === "left" ? "right" : "left"}`,
-          icon: <PanelLeftOpen size={16} />,
-          onSelect: () =>
-            command({
-              type: "sidebarSide",
-              side: workspace.dock.sidebarSide === "left" ? "right" : "left",
-            }),
-        },
-        {
-          id: "sidebar-visibility",
-          label: workspace.dock.hidden.sidebar
-            ? "Show sidebar"
-            : "Hide sidebar",
-          icon: <PanelLeftOpen size={16} />,
-          onSelect: () =>
-            command({
-              type: "visibility",
-              surface: "sidebar",
-              hidden: !workspace.dock.hidden.sidebar,
-            }),
-        },
-        {
-          id: "main-visibility",
-          label: workspace.dock.hidden.main
-            ? "Show main surface"
-            : "Hide main surface",
-          icon: <PanelTopOpen size={16} />,
-          onSelect: () =>
-            command({
-              type: "visibility",
-              surface: "main",
-              hidden: !workspace.dock.hidden.main,
-            }),
-        },
-        {
-          id: "layout-back",
-          label: "Undo layout",
-          icon: <Undo2 size={16} />,
-          onSelect: () => store.undoLayout(),
-        },
-        {
-          id: "layout-forward",
-          label: "Redo layout",
-          icon: <Redo2 size={16} />,
-          onSelect: () => store.redoLayout(),
-        },
-        {
-          id: "panel-back",
-          label: "Back to previous panel",
-          icon: <ArrowLeft size={16} />,
-          onSelect: () => navigate("back"),
-        },
-        {
-          id: "panel-forward",
-          label: "Forward to next panel",
-          icon: <ArrowRight size={16} />,
-          onSelect: () => navigate("forward"),
-        },
-      ],
-    },
-    {
-      heading: "Create",
-      items: [
-        {
-          id: "new-web-asset",
-          label: "New web content",
-          icon: <Plus size={16} />,
-          onSelect: () =>
-            showOverlay({ kind: "create", target: "web-content" }),
-        },
-        {
-          id: "new-asset",
-          label: "New Component",
-          icon: <Plus size={16} />,
-          onSelect: () => showOverlay({ kind: "create", target: "component" }),
-        },
-        {
-          id: "new-workspace",
-          label: "New workspace",
-          icon: <Folder size={16} />,
-          onSelect: () => showOverlay({ kind: "create", target: "workspace" }),
-        },
-      ],
-    },
-  ];
+  const shortcutEntries = (workspace.shortcuts ?? DEFAULT_SHORTCUTS).entries;
+  const actionGroups = shellActions(workspace).map(group => ({ ...group, items: group.items.map(action => {
+    const override = shortcutEntries.find(e => e.action.kind === "shell" && e.action.actionId === action.id);
+    return override ? { ...action, shortcut: override.enabled ? override.keys ?? undefined : undefined } : action;
+  }) }));
+  const condition = (key:string) => {
+    if(key==='canUndo')return store.layoutHistory().canUndo;
+    if(key==='canRedo')return store.layoutHistory().canRedo;
+    if(key==='canBack')return navigationAvailable(store.active(),nav.back);
+    if(key==='canForward')return navigationAvailable(store.active(),nav.forward);
+    return false;
+  };
+  const invoke = createActionRouter({condition,command:commandOwner,shell:shellActionImplementations({workspace:store.active,command,revealPanel,toggleBrowser,showOverlay,openInspector,navigate,undo:store.undoLayout,redo:store.redoLayout,palette:()=>openPalette()})});
+  const actionById = (id:string) => actionGroups.flatMap(group=>group.items).find(action=>action.id===id)!;
+  const paletteActions = shellCommandGroups(actionGroups,invoke,condition);
+  useEffect(() => {
+    const onKey=(event:KeyboardEvent)=>{
+      if (event.repeat || event.isComposing || event.getModifierState('AltGraph') || event.defaultPrevented || document.querySelector('[data-shortcuts-manager]')) return;
+      const typing=!!(event.target as Element)?.closest('input,textarea,select,[contenteditable],.cm-editor,[role=dialog],[role=application],canvas');
+      const input={...{key:event.key,ctrlKey:event.ctrlKey,metaKey:event.metaKey,shiftKey:event.shiftKey,altKey:event.altKey},typing,composing:event.isComposing,handled:event.defaultPrevented};
+      const platform=/Mac|iPhone|iPad/.test(navigator.platform)?'mac':'other';
+      if (!typing && event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); openShortcuts(); return; }
+      const overridden = new Set(shortcutEntries.filter(e => e.action.kind === 'shell').map(e => e.action.kind === 'shell' ? e.action.actionId : ''));
+      const action=actionGroups.flatMap(group=>group.items).find(action=>action.id!=='palette'&&!overridden.has(action.id)&&action.shortcut&&matchesActionShortcut(action.shortcut,input,platform))
+        ?? (matchesActionShortcut('mod+y',input,platform)?actionById('redo'):undefined);
+      if(action && actionState(action,condition).visible && actionState(action,condition).enabled){event.preventDefault();void invoke(action);}
+    };
+    window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
+  },[actionGroups,invoke]);
+
   const sidebarHasPanels = surfacePanels(workspace.dock, "sidebar").length > 0;
   const bottomHasPanels =
     !workspace.dock.hidden.bottom ||
@@ -1001,16 +582,24 @@ export function WorkspaceApp() {
     if (narrow && sidebarHasPanels) setBottomOpen(true);
   }, [narrow, sidebarHasPanels]);
   return (
-    <DockHost
+    <RichTextAssetsContext.Provider value={{ createMarkdown: (name, source) => commandOwner("asset.create", { kind: "markdown", name: name.slice(0, 120), files: { "note.md": source } }).result.id, open: id => command({ type: "openAsset", assetId: id }) }}><SemanticThemeProvider workspace={workspace} preference={state.app.theme} resolveSvg={ports.resolveSvg}><DeskScene><DockHost
       key={`${workspace.id}:${workspace.activeDeskId}`}
       layout={workspace.dock}
       onCommand={command}
       renderPanel={renderPanel}
+      definitions={definitions}
+      definitionSources={{ workspaceId: workspace.id, assets: workspace.assets }}
+      onOpenDefinition={(assetId) => {
+        store.selectAsset(assetId);
+        command({ type: "openAsset", assetId });
+      }}
+      onForkDefinition={(assetId) => {
+        const id = store.forkWidgetDefinition(assetId);
+        command({ type: "openAsset", assetId: id });
+      }}
       panelTitle={(panel) =>
-        definitionForPanel(
-          panel,
-          widgetDefinitions(workspace.assets, workspace),
-        )?.title ?? panel.id
+        (panel.kind === "widget" ? panel.displayName : undefined) ||
+        (definitionForPanel(panel, definitions)?.title ?? panel.id)
       }
       debugDropZones={new URLSearchParams(location.search).has(
         "debugDropZones",
@@ -1018,22 +607,63 @@ export function WorkspaceApp() {
       debugLayout={new URLSearchParams(location.search).has("debugLayout")}
     >
       <ThemeAssets workspace={workspace} />
-      <DeskControls
-        key={workspace.activeDeskId}
-        workspace={workspace}
-        onSearch={(query) => openPalette(query ?? "search: ")}
-      />
-      <WidgetBrowser workspace={workspace} onReveal={revealPanel} />
-      <div
-        className={`app density-${state.app.density} ${sidebarHasPanels ? "has-sidebar-dock" : ""}`}
-        style={
-          {
-            "--dock-sidebar-width": `clamp(220px, ${workspace.dock.sidebarWidth}px, 55vw)`,
-          } as CSSProperties
+      <AppShellWidget
+        panel={
+          workspace.dock.panels[workspace.dock.rootId!] as Extract<
+            DockPanel,
+            { kind: "widget" }
+          >
         }
-        data-sidebar-side={workspace.dock.sidebarSide}
-        data-sidebar-hidden={workspace.dock.hidden.sidebar || undefined}
+        workspaceId={workspace.id}
+        density={state.app.density}
+        narrow={narrow}
+        bottomOpen={bottomOpen}
+        bottomHasPanels={bottomHasPanels}
+        setBottomOpen={setBottomOpen}
+        command={command}
+        layout={workspace.dock}
+        toolbar={
+          <MainSurfaceToolbar
+            onSearch={() => openPalette("search: ")}
+            onAction={invoke}
+            history={['back','forward'].map(id=>({action:actionById(id),disabled:!actionState(actionById(id),condition).enabled,secondary:true}))}
+            actions={['undo','redo','palette','inspector'].map(id=>({action:actionById(id),disabled:!actionState(actionById(id),condition).enabled,secondary:id==='undo'||id==='redo'}))}
+          >
+            <BuiltinToolbarTool id="notifications"><NotificationInbox defaultItems={[]} /></BuiltinToolbarTool>
+            <BuiltinToolbarTool id="widgets"><WidgetCatalog /></BuiltinToolbarTool>
+            <BuiltinToolbarTool id="theme">{(store.desk().themeId ?? workspace.themeId) ? <IconAction label="Edit workspace theme" onClick={() => command({ type: "openAsset", assetId: (store.desk().themeId ?? workspace.themeId)! })}><Settings2 size={15} /></IconAction> : <ThemeToggle
+              theme={state.app.theme}
+              onThemeChange={(theme) => store.patchApp({ theme })}
+            />}
+            </BuiltinToolbarTool>
+            <BuiltinToolbarTool id="user"><UserMenu
+              user={{
+                name:
+                  cloudAccount.account?.user.name ?? (identity?.kind === "demo"
+                    ? identity.email?.split("@")[0] || "Demo"
+                    : "Guest"),
+                email: cloudAccount.account?.user.email ?? identity?.email ?? "Local guest",
+              }}
+              onSignOut={async () => {
+                if (cloudAccount.account) await accountClient.signOut();
+                demoSession.set(null);
+                setIdentity(null);
+              }}
+            >
+              <UserMenuItem icon={<Settings2 size={15} />} onClick={() => setAccountOpen(true)}>Account and sessions</UserMenuItem>
+              <SemanticActionMenuItem action={actionById('settings')} invoke={invoke} condition={condition}/>
+              <SemanticActionMenuItem action={actionById('palette')} invoke={invoke} condition={condition}/>
+              <UserMenuItem
+                icon={<Command size={15} />}
+                onClick={() => openShortcuts()}
+              >
+                Keyboard shortcuts
+              </UserMenuItem>
+            </UserMenu></BuiltinToolbarTool>
+          </MainSurfaceToolbar>
+        }
       >
+        <WidgetBrowser workspace={workspace} onReveal={revealPanel} />
         <WorkspacePalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
@@ -1045,271 +675,20 @@ export function WorkspaceApp() {
           }}
           actions={paletteActions}
         />
-        <main className="shell">
-          <div className="work-area">
-            {!workspace.dock.hidden.sidebar && (
-              <>
-                <DockSurface surface="sidebar" className="app-sidebar-dock" />
-                <SideDockResize
-                  width={workspace.dock.sidebarWidth}
-                  side={workspace.dock.sidebarSide}
-                  onResize={(width) =>
-                    command({ type: "resizeSidebar", width })
-                  }
-                />
-              </>
-            )}
-            <PanelGroup
-              key={workspace.id}
-              direction="vertical"
-              className="dock-workspace"
-              onLayout={(sizes) => {
-                if (sizes[1] > 0)
-                  command({ type: "resizeBottom", size: sizes[1] });
-              }}
-            >
-              <Panel
-                id="workspace-main"
-                defaultSize={
-                  bottomOpen && bottomHasPanels
-                    ? 100 - workspace.dock.bottomSize
-                    : 100
-                }
-                minSize={40}
-              >
-                <section className="content">
-                  <div className="dock-shell-top">
-                    <DockMainTabs />
-                  </div>
-                  <MainSurfaceToolbar
-                    onSearch={() => openPalette("search: ")}
-                    history={[
-                      {
-                        id: "back",
-                        label: "Back",
-                        secondary: true,
-                        icon: <ArrowLeft size={16} />,
-                        disabled: !nav.back.some(
-                          (id) => panelSurface(workspace.dock, id) === "main",
-                        ),
-                        onClick: () => navigate("back"),
-                      },
-                      {
-                        id: "forward",
-                        label: "Forward",
-                        secondary: true,
-                        icon: <ArrowRight size={16} />,
-                        disabled: !nav.forward.some(
-                          (id) => panelSurface(workspace.dock, id) === "main",
-                        ),
-                        onClick: () => navigate("forward"),
-                      },
-                    ]}
-                    actions={[
-                      {
-                        id: "sidebar",
-                        label: `${workspace.dock.hidden.sidebar ? "Show" : "Hide"} sidebar (Shift+Q)`,
-                        icon: workspace.dock.hidden.sidebar ? (
-                          <PanelLeftOpen size={16} />
-                        ) : (
-                          <PanelLeftClose size={16} />
-                        ),
-                        onClick: () =>
-                          command({
-                            type: "visibility",
-                            surface: "sidebar",
-                            hidden: !workspace.dock.hidden.sidebar,
-                          }),
-                      },
-                      {
-                        id: "undo",
-                        label: "Undo layout",
-                        secondary: true,
-                        icon: <Undo2 size={16} />,
-                        disabled: !store.layoutHistory().canUndo,
-                        onClick: () => {
-                          store.undoLayout();
-                        },
-                      },
-                      {
-                        id: "redo",
-                        label: "Redo layout",
-                        secondary: true,
-                        icon: <Redo2 size={16} />,
-                        disabled: !store.layoutHistory().canRedo,
-                        onClick: () => {
-                          store.redoLayout();
-                        },
-                      },
-                      {
-                        id: "main",
-                        label: `${workspace.dock.hidden.main ? "Show" : "Hide"} main surface`,
-                        secondary: true,
-                        icon: workspace.dock.hidden.main ? (
-                          <PanelTopOpen size={16} />
-                        ) : (
-                          <PanelTopClose size={16} />
-                        ),
-                        onClick: () =>
-                          command({
-                            type: "visibility",
-                            surface: "main",
-                            hidden: !workspace.dock.hidden.main,
-                          }),
-                      },
-                      {
-                        id: "bottom",
-                        label: `${bottomOpen && !workspace.dock.hidden.bottom ? "Hide" : "Show"} bottom dock`,
-                        icon:
-                          bottomOpen && !workspace.dock.hidden.bottom ? (
-                            <PanelBottomClose size={16} />
-                          ) : (
-                            <PanelBottomOpen size={16} />
-                          ),
-                        onClick: () =>
-                          command({
-                            type: "visibility",
-                            surface: "bottom",
-                            hidden: bottomOpen && !workspace.dock.hidden.bottom,
-                          }),
-                      },
-                      {
-                        id: "browser",
-                        label: "Toggle asset browser (Shift+W)",
-                        icon: <Box size={16} />,
-                        onClick: toggleBrowser,
-                      },
-                      {
-                        id: "palette",
-                        label: "Command palette (Ctrl+K)",
-                        icon: <Command size={16} />,
-                        onClick: () => openPalette(),
-                      },
-                      {
-                        id: "inspector",
-                        label: "Open docking inspector",
-                        icon: <ListTree size={16} />,
-                        onClick: () => {
-                          void openInspector();
-                        },
-                      },
-                    ]}
-                  >
-                    <NotificationInbox defaultItems={[]} />
-                    <WidgetCatalog />
-                    <ThemeToggle
-                      theme={state.app.theme}
-                      onThemeChange={(theme) => store.patchApp({ theme })}
-                    />
-                    <UserMenu
-                      user={{
-                        name:
-                          identity?.kind === "demo"
-                            ? identity.email?.split("@")[0] || "Demo"
-                            : "Guest",
-                        email: identity?.email || "Local guest",
-                      }}
-                      onSignOut={() => {
-                        demoSession.set(null);
-                        setIdentity(null);
-                      }}
-                    >
-                      <UserMenuItem
-                        icon={<Settings2 size={15} />}
-                        onClick={() => showOverlay({ kind: "settings" })}
-                      >
-                        Settings
-                      </UserMenuItem>
-                      <UserMenuItem
-                        icon={<Command size={15} />}
-                        onClick={() => openPalette()}
-                      >
-                        Command palette
-                      </UserMenuItem>
-                      <UserMenuItem
-                        icon={<Command size={15} />}
-                        onClick={() => setShortcutsOpen(true)}
-                      >
-                        Keyboard shortcuts
-                      </UserMenuItem>
-                    </UserMenu>
-                  </MainSurfaceToolbar>
-                  <div className="page">
-                    {workspace.dock.hidden.main ? (
-                      <div className="dock-hidden-message">
-                        <span>Main surface hidden</span>
-                        <button
-                          onClick={() =>
-                            command({
-                              type: "visibility",
-                              surface: "main",
-                              hidden: false,
-                            })
-                          }
-                        >
-                          Show main
-                        </button>
-                      </div>
-                    ) : (
-                      <DockSurface surface="main" />
-                    )}
-                  </div>
-                </section>
-              </Panel>
-              <PanelHandle
-                aria-label="Resize bottom dock"
-                className="dock-resize-handle"
-                grip
-              />
-              <Panel
-                id="workspace-bottom"
-                className="bg-frame"
-                defaultSize={workspace.dock.bottomSize}
-                minSize={24}
-                maxSize={60}
-                collapsible
-                collapsed={!bottomOpen || !bottomHasPanels}
-                onCollapsedChange={(collapsed) => setBottomOpen(!collapsed)}
-              >
-                {narrow ? (
-                  <DockMobileSurface />
-                ) : (
-                  <DockSurface surface="bottom" />
-                )}
-              </Panel>
-            </PanelGroup>
-          </div>
-        </main>
-        <DockBottomEdge />
-        <DockFloatingPanels />
-        <ShortcutsSheet
-          open={shortcutsOpen}
-          onOpenChange={setShortcutsOpen}
-          groups={[
-            {
-              heading: "Workspace",
-              shortcuts: [
-                { keys: "mod+k", label: "Open command palette" },
-                { keys: "shift+w", label: "Toggle asset browser" },
-              ],
-            },
-            {
-              heading: "Asset browser",
-              shortcuts: [
-                { keys: "mod+a", label: "Select visible assets" },
-                { keys: "delete", label: "Delete selected assets" },
-                { keys: "shift+f10", label: "Open context menu" },
-              ],
-            },
-          ]}
-        />
+        <ShortcutHost workspace={workspace} invokeShell={id => { const action = actionGroups.flatMap(g => g.items).find(a => a.id === id); if (action) void invoke(action); }} />
         <OverlayHost
+          shortcuts={<ShortcutSettings workspace={workspace} onChange={settings => store.configureShortcuts(settings)} onCreateInbox={files => {
+            const id = commandOwner('asset.create', { kind: 'data-source', name: 'Inbox', files }).result.id;
+            command({ type: 'createWidget', widget: 'data-view', defaults: { displayName: 'Inbox', dataView: { sourceId: id, presentation: 'table', search: '', descending: true, sortBy: 'created', hiddenColumns: ['created'] } }, target: { surface: 'sidebar', intent: 'tab' } });
+            return id;
+          }} />}
+          store={store}
           overlay={overlay}
           setOverlay={setOverlay}
           workspace={workspace}
           state={state}
           onContinue={
-            !identity
+            !identity && !cloudAccount.account && !cloudAccount.loading && !accountOpen && !cloudAccount.notice
               ? (value) => {
                   demoSession.set(value);
                   setIdentity(value);
@@ -1317,7 +696,9 @@ export function WorkspaceApp() {
               : undefined
           }
         />
-      </div>
-    </DockHost>
+        <Dialog open={accountOpen} onOpenChange={setAccountOpen}><DialogContent size="md"><DialogHeader><DialogTitle>Account and sessions</DialogTitle></DialogHeader><DialogBody><AccountSettings /></DialogBody></DialogContent></Dialog>
+        {cloudAccount.notice && <Dialog open onOpenChange={open => { if (!open) accountClient.dismissNotice(); }}><DialogContent size="sm"><DialogHeader><DialogTitle>Session notification</DialogTitle></DialogHeader><DialogBody><p role="status">{cloudAccount.notice}</p></DialogBody><DialogFooter><Button onClick={() => accountClient.dismissNotice()}>Dismiss</Button></DialogFooter></DialogContent></Dialog>}
+      </AppShellWidget>
+    </DockHost></DeskScene></SemanticThemeProvider></RichTextAssetsContext.Provider>
   );
 }

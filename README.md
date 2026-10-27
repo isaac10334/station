@@ -2,11 +2,11 @@
 
 A local, self-extending workspace for assets, built-in widgets, authored web content and WebAssembly Components. Workspace data and capability grants are saved in browser `localStorage`; the Bun server builds Component source in Vercel Sandbox and stores verified artifact bytes locally by hash.
 
-The UI and source model use **asset** terminology. Existing workspace data migrates on load; legacy storage and WIT wire identifiers stay compatible. See [local extensions and desks](docs/extensions.md) for implemented theme assets, editor composition, packages, the SDK and configuration. The wider [programmability exploration](docs/explorations/assets-and-programmability.md) remains a roadmap.
+The UI and source model use **asset** terminology. Existing workspace data migrates on load; legacy storage and WIT wire identifiers stay compatible. See [local extensions and desks](docs/extensions.md) for implemented theme assets, editor composition, packages, the SDK and configuration. The [core-system review](docs/core-systems-review.md) owns current adoption gaps and next slices.
 
 ## Repository
 
-This is a Bun workspace. `apps/station` owns the browser and desktop application; `packages/sdk` is the npm-ready guest SDK, and `packages/capabilities` contains public identities and serializable contracts. `packages/ui` shares semantic icons and portable themed primitives with guests and `apps/site`, the marketing site. The private root manifest coordinates commands and one lockfile. [Application boundaries](apps/station/README.md) separate core state, contracts, providers, services, UI and wiring. The [UI capability design](docs/ui-capabilities.md) is a proposal for the next extension slice. Neither public package has been published.
+This is a Bun workspace at `C:/Users/ijhar/Desktop/station` on this machine. `apps/station` owns the browser and desktop application; `packages/sdk` is the npm-ready guest SDK, and `packages/capabilities` contains public identities and serializable contracts. `packages/ui` shares semantic icons and portable themed primitives with guests and `apps/site`, the marketing site. The private root manifest coordinates commands and one lockfile. [Application boundaries](apps/station/README.md) separate core state, contracts, providers, services, UI and wiring. [Semantic UI](docs/semantic-ui.md) describes the implemented element/event contracts; [surface explorations](docs/explorations/surface-system.md) retain the drawing/GPU questions. Neither public package has been published.
 
 ## New checkpoint
 

@@ -4,35 +4,60 @@
   "type": "module",
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "vendor/loop-kit/*"
+    "packages/*"
   ],
   "scripts": {
+    "start:cloud": "bun apps/station/server/cloud.ts",
     "dev": "bun run --cwd apps/station dev",
+    "dev:agent": "bun run prepare:web && bun run styles && bun --watch apps/station/scripts/dev-agent.ts",
     "start": "bun run --cwd apps/station start",
     "build": "bun run --cwd apps/station build",
     "styles": "bun run --cwd apps/station styles",
     "build:component": "bun run --cwd apps/station build:component",
-    "typecheck": "bun run prepare:web && bun run --cwd apps/station typecheck && bun run --cwd packages/ui typecheck && bun run --cwd apps/site typecheck",
+    "typecheck": "bun run prepare:web && bun run repo typecheck",
     "verify:component": "bun run --cwd apps/station verify:component",
     "setup:sandbox": "bun run --cwd apps/station setup:sandbox",
     "desktop:prepare": "bun run --cwd apps/station desktop:prepare",
     "desktop:build": "bun run --cwd apps/station desktop:build",
     "desktop:dev": "bun run --cwd apps/station desktop:dev",
     "prepare:web": "bun run --cwd apps/station prepare:web",
-    "test": "bun test",
+    "test": "bun test tooling tests apps/station/tests",
+    "station:control": "bun apps/station/scripts/station-control.ts",
+    "test:browser": "bun run --cwd packages/capabilities build && bun test apps/station/tests/browser-contexts.test.ts apps/station/tests/browser-presentation.test.ts apps/station/tests/browser-geometry.test.ts",
+    "test:browser:native": "bun apps/station/scripts/build-browser-native.ts && bun apps/station/scripts/verify-browser-native.ts",
     "test:release": "bun test tests/release.test.ts",
     "prepare:release": "bun scripts/prepare-canary-release.ts",
-    "build:sdk": "bun run build:packages",
     "build:site": "bun run build:packages && bun run --cwd apps/site build && bun run verify:site",
     "verify:site": "bun scripts/verify-site.ts",
     "dev:site": "bun run build:packages && bun run --cwd apps/site dev",
-    "build:packages": "bun run --cwd packages/capabilities build && bun run --cwd packages/sdk build && bun run --cwd packages/ui build"
+    "build:packages": "bun run repo build-packages",
+    "repo": "bun tooling/repo.ts",
+    "check": "bun run repo check && bun test tooling",
+    "verify": "bun run repo verify all",
+    "check:packages": "bun tooling/check-packages.ts",
+    "loop:link": "bun run repo link",
+    "loop:verify": "bun run repo link status --json",
+    "loop:prove": "bun tooling/prove-local-loop.ts",
+    "loop:ci-check": "bun tooling/prove-clean-loop.ts"
   },
   "registries": {
     "@stealth": "https://stealth.pm/r/{name}.json",
     "@magicui": "https://magicui.design/r/{name}.json",
     "@react-bits": "https://reactbits.dev/r/{name}.json",
     "@svgl": "https://svgl.app/r/{name}.json"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/bun": "1.3.14",
+    "@loop-kit/capabilities": "^0.1.0",
+    "@loop-kit/host": "^0.1.0",
+    "@loop-kit/ui": "^0.1.0",
+    "@loop-kit/scripting": "^0.1.0"
+  },
+  "overrides": {
+    "@loop-kit/capabilities": "file:./artifacts/loop-kit/loop-kit-capabilities-0.1.0.tgz",
+    "@loop-kit/host": "file:./artifacts/loop-kit/loop-kit-host-0.1.0.tgz",
+    "@loop-kit/ui": "file:./artifacts/loop-kit/loop-kit-ui-0.1.0-semantic-ui.tgz",
+    "@loop-kit/scripting": "file:./artifacts/loop-kit/loop-kit-scripting-0.1.0.tgz"
   }
 }

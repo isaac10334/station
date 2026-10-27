@@ -4,7 +4,8 @@ import {
   sharedSource,
   sourceAsset,
 } from "../src/core/workspace-sharing";
-import { createStore, hasCurrentArtifact } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
+import { hasCurrentArtifact } from "../src/core/asset-state";
 const source = {
   id: "notes",
   kind: "web-content" as const,

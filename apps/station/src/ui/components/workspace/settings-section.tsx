@@ -27,7 +27,7 @@ export function SettingsSection({
     <section aria-labelledby={id} className="flex min-w-0 flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 id={id} className="text-sm font-medium tracking-tight text-fg">
+          <h2 id={id} className="text-sm! font-medium! leading-5! tracking-tight text-fg">
             {title}
           </h2>
           {description && (

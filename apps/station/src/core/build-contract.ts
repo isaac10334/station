@@ -13,7 +13,7 @@ export type BuiltArtifact = {
   sourceSha256: string;
   sha256: string;
   bytes: number;
-  builtBy: "vercel-sandbox";
+  builtBy: "vercel-sandbox" | "oci-container";
   profile: "component-model-0.3";
   worldDigest: string;
   imports: string[];

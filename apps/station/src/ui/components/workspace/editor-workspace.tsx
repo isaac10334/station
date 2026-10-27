@@ -1,11 +1,12 @@
 import { useSourceEditing } from "../../lib/use-source-editing";
+import { patchOwnerFiles } from "../../lib/owner-commands";
 import {
   useEffect,
   useLayoutEffect,
   useState,
   useSyncExternalStore,
 } from "react";
-import type { Asset } from "../../../core/model";
+import type { Asset } from "../../../core/asset-state";
 import { deps } from "../../../composition";
 import {
   EditorSession,
@@ -31,8 +32,9 @@ import { Input } from "../ui/input";
 import { Tabs, TabsList, TabsTab } from "../ui/tabs";
 import { Button } from "../ui/button";
 
-export function useEditorOwner(asset: Asset, ownerId: string) {
+export function useEditorOwner(asset: Asset, ownerId: string, adapter?: EditorSession["sourceAdapter"]) {
   const [session] = useState(() => new EditorSession(asset));
+  useLayoutEffect(() => { session.sourceAdapter = adapter; }, [session, adapter]);
   useLayoutEffect(
     () => registerEditorSession(ownerId, session),
     [session, ownerId],
@@ -127,7 +129,8 @@ export function EditorPart({
     editorSessionRegistry.snapshot,
   );
   const session = editorSessions.get(panel.ownerId!);
-  const editable = useSourceEditing(panel.assetId);
+  const sourceEditable = useSourceEditing(panel.assetId);
+  const editable = session?.sourceAdapter?.editable ?? sourceEditable;
   const [operation, setOperation] = useState<
       "new" | "rename" | "delete" | null
     >(null),
@@ -139,6 +142,7 @@ export function EditorPart({
   );
   if (!session) return <p>Opening editor…</p>;
   const files = assetFiles(session.asset);
+  const patchFiles = (patch: Record<string, string | null>) => session.sourceAdapter ? session.sourceAdapter.patch(patch) : patchOwnerFiles(session.asset.id, patch);
   const title = {
     files: "Files",
     code: "Code",
@@ -150,7 +154,7 @@ export function EditorPart({
       {panel.part === "files" ? (
         <>
           <SourceFileTree
-            editable={editable}
+            editable={editable && !(session.sourceAdapter && session.selected === "program.json")}
             paths={Object.keys(files)}
             selected={session.selected}
             onSelect={(path) => session.select(path)}
@@ -202,7 +206,7 @@ export function EditorPart({
             aria-label={session.selected || "Code"}
           >
             {session.selected ? (
-              <SourceEditor session={session} path={session.selected} />
+              <SourceEditor session={session} path={session.selected} editable={editable && !(session.sourceAdapter && session.selected === "program.json")} onChange={session.sourceAdapter ? (path, source) => patchFiles({ [path]: source }) : undefined} />
             ) : (
               <p>Select a file to edit.</p>
             )}
@@ -271,12 +275,13 @@ export function EditorPart({
                 if (operation === "new") {
                   if (files[name] !== undefined)
                     throw new Error("File already exists");
-                  deps.store.editFile(session.asset.id, name, "");
+                  patchFiles({ [name]: "" });
                   session.selected = name;
                 } else if (operation === "rename") {
                   const previous = session.selected;
                   const document = session.documents.get(previous);
-                  deps.store.renameFile(session.asset.id, previous, name);
+                  if (files[name] !== undefined) throw new Error("Destination file already exists");
+                  patchFiles({ [previous]: null, [name]: files[previous] });
                   if (document) session.documents.set(name, document);
                   session.documents.delete(previous);
                   session.tabs = session.tabs.map((path) =>
@@ -284,7 +289,7 @@ export function EditorPart({
                   );
                   session.selected = name;
                 } else
-                  deps.store.removeFile(session.asset.id, session.selected);
+                  patchFiles({ [session.selected]: null });
                 setOperation(null);
                 setError("");
               } catch (error) {

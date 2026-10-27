@@ -1,25 +1,18 @@
 /** Trusted built-in JS contracts. These do not add imports or grants to a Component. */
 import { assetFiles } from "../core/source-project";
-import { assetCatalog, assetReader, webDraftWriter, workspaceClock, textDigest } from "@station/capabilities";
-export { assetCatalog, assetReader, webDraftWriter, workspaceClock, textDigest } from "@station/capabilities";
+import { stationAssetCatalog as assetCatalog, stationAssetReader as assetReader, stationWebDraftWriter as webDraftWriter, loopClock as workspaceClock, loopTextDigest as textDigest } from "@station/capabilities";
+export { stationAssetCatalog as assetCatalog, stationAssetReader as assetReader, stationWebDraftWriter as webDraftWriter, loopClock as workspaceClock, loopTextDigest as textDigest } from "@station/capabilities";
 export type { WorkspaceClock, TextDigest, AssetSummary, AssetCatalog, AssetReader, WebDraftWriter } from "@station/capabilities";
 import type { Host, Scope } from "@loop-kit/host";
-import type { createStore, Asset } from "../core/model";
+import type { createStore } from "../features/workspace/application/store";
+import type { Asset } from "../core/asset-state";
 import { sha256 } from "../core/build-contract";
-import type { GrantedWidgetScope } from "../services/widget-grants";
-import type { AISettingsStore } from "../services/ai-settings";
 
-/** Diagnostic data plus owned acquisition access for trusted built-in consumers. */
-export interface WorkspaceCapabilityRuntime {
-  diagnostics: Pick<Host, "inspect" | "subscribe">;
-  openScope(workspaceId: string, name: string): Scope;
-  openWidgetScope(
-    workspaceId: string,
-    instanceId: string,
-    grants: Iterable<string>,
-  ): GrantedWidgetScope;
-  aiSettings: AISettingsStore;
-}
+
+import { browserContexts } from "@station/capabilities";
+import { desktopBrowserContexts } from "../services/browser-contexts";
+import { assetCatalog as legacyCatalog, assetReader as legacyReader, webDraftWriter as legacyWriter, workspaceClock as legacyClock, textDigest as legacyDigest } from '@station/capabilities';
+import { provideCompatibilityAlias } from './capability-aliases';
 
 /** Register local implementations. The private scope binding, never inspector metadata, selects a workspace. */
 export function provideWorkspaceCapabilities(
@@ -27,6 +20,24 @@ export function provideWorkspaceCapabilities(
   store: ReturnType<typeof createStore>,
   workspaceForScope: (scope: Scope) => string | undefined,
 ) {
+  provideCompatibilityAlias(host, legacyCatalog, assetCatalog);
+  provideCompatibilityAlias(host, legacyReader, assetReader);
+  provideCompatibilityAlias(host, legacyWriter, webDraftWriter);
+  provideCompatibilityAlias(host, legacyClock, workspaceClock);
+  provideCompatibilityAlias(host, legacyDigest, textDigest);
+  host.define(browserContexts, {
+    name: "Browser contexts",
+    description: "Owned browser sessions: bounded navigation and presentation; no page scripting, downloads, devices or native handles. Availability depends on the host provider.",
+  });
+  host.provide(browserContexts, {
+    create({ scope, signal }) {
+      if (!workspaceForScope(scope)) throw new Error("Browser contexts require a workspace scope.");
+      return desktopBrowserContexts(signal);
+    },
+    async dispose(value) {
+      await (value as ReturnType<typeof desktopBrowserContexts>).dispose();
+    },
+  }, { name: "Station desktop browser", description: "Authenticated desktop transport. Native readiness is checked before any view is created." });
   host.define(workspaceClock, {
     name: "Clock",
     description:

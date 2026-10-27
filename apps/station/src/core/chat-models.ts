@@ -10,7 +10,6 @@ export const CHAT_MODELS = [
     input: 0.1,
     output: 0.5,
     tags: ["reasoning", "tools", "vision", "long-context"],
-    fast: true,
   },
   {
     id: "anthropic/claude-haiku-5.5",
@@ -25,7 +24,6 @@ export const CHAT_MODELS = [
     input: 2,
     output: 10,
     tags: ["reasoning", "tools", "vision", "long-context"],
-    fast: true,
   },
   {
     id: "anthropic/claude-sonnet-5.5",
@@ -47,6 +45,5 @@ export const CHAT_MODELS = [
     input: 0.4,
     output: 1.6,
     tags: ["tools", "vision", "long-context"],
-    fast: true,
   },
 ] as const;

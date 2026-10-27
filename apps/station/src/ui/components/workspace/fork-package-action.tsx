@@ -1,4 +1,4 @@
-import type { Workspace } from "../../../core/model";
+import type { Workspace } from "../../../core/workspace-state";
 import type { PackageInstallation } from "../../../core/package-assets";
 import { forkInstallation } from "../../../core/fork-package";
 import { deps } from "../../../composition";

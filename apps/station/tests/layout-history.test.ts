@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createStore } from "../src/core/model";
+import { createStore } from "../src/features/workspace/application/store";
 import { panelSurface, surfacePanels } from "../src/core/docking";
 
 const memory = () => {

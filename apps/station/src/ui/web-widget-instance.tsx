@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { WebContentAsset } from "../core/model";
+import type { WebContentAsset } from "../core/asset-state";
 import { assetFiles } from "../core/source-project";
 import { buildWebProject, type WebBuild } from "../services/web-build";
 import { SandboxFrame } from "./sandbox-frame";

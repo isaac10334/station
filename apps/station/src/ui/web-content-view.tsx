@@ -1,4 +1,4 @@
-import type { WebContentAsset } from "../core/model";
+import type { WebContentAsset } from "../core/asset-state";
 
 import {
   EditorWorkspace,

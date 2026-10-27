@@ -6,14 +6,16 @@ export function setIconOverrides(next: IconOverrides) {
   const safe: Record<string, string> = {};
   let bytes = 0;
   for (const [name, url] of Object.entries(next)) {
-    if (
-      !url.startsWith("data:image/svg+xml,") ||
-      bytes + url.length > 131072
-    )
+    if (!url.startsWith("data:image/svg+xml,") || bytes + url.length > 131072)
       continue;
     bytes += url.length;
     safe[name] = url;
   }
+  if (
+    Object.keys(safe).length === Object.keys(current).length &&
+    Object.entries(safe).every(([name, url]) => current[name] === url)
+  )
+    return;
   current = Object.freeze(safe);
   listeners.forEach((fn) => fn());
 }

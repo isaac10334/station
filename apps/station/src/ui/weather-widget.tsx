@@ -1,3 +1,6 @@
+import { BUILTIN_AUTHORED_SURFACES, type AuthoredSurface } from "../core/authored-surface";
+import { AdaptiveWidgetSurface } from "./components/workspace/adaptive-widget-surface";
+import { AuthoredSurfaceView } from "./components/workspace/authored-surface";
 import { useEffect, useState } from "react";
 import { Cloud, CloudFog, CloudLightning, CloudRain, CloudSun, LocateFixed, Snowflake, Sun } from "lucide-react";
 
@@ -14,7 +17,7 @@ function condition(code: number) {
 }
 
 /** Location is requested only on a user action; no implicit IP lookup or fallback city. */
-export function WeatherWidget() {
+export function WeatherWidget({ surface = BUILTIN_AUTHORED_SURFACES.weather }: { surface?: AuthoredSurface }) {
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState("");
@@ -43,17 +46,10 @@ export function WeatherWidget() {
       () => { setError("Location was not shared. Check browser permissions and try again."); setStatus("error"); }, { timeout: 10000 });
   }
   const current = condition(forecast?.code ?? 1);
-  return <div className="weather-widget" data-weather={forecast ? current.tone : "preview"}>
-    <div className="weather-orb" aria-hidden="true"><current.Icon size={72} strokeWidth={1.25} /></div>
-    <div className="weather-main"><span className="weather-location"><LocateFixed size={14} /> {forecast ? "Current location" : "Your local forecast"}</span>
-      {forecast ? <><div className="weather-temperature">{forecast.temperature}<span>°C</span></div><strong>{current.label}</strong><small>{forecast.isDay ? "Daytime" : "Nighttime"} · Open-Meteo</small></>
-        : <><strong className="weather-intro">A little atmosphere for your workspace.</strong><small>See the next six hours where you are.</small>
-          <button type="button" className="weather-locate" onClick={locate} disabled={status === "loading"}><LocateFixed size={14} /> {status === "loading" ? "Finding forecast…" : "Use my location"}</button></>}
-      {status === "error" && <p className="weather-error" role="alert">{error} <button type="button" onClick={locate}>Try again</button></p>}
-    </div>
-    {forecast && <div className="weather-hours" aria-label="Next six hours">{forecast.hours.map((hour) => {
-      const { Icon } = condition(hour.code);
-      return <div key={hour.time}><time>{hour.time.slice(11, 16)}</time><Icon size={19} strokeWidth={1.7} /><strong>{hour.temperature}°</strong></div>;
-    })}</div>}
-  </div>;
+  return <AdaptiveWidgetSurface><AuthoredSurfaceView surface={surface} inputs={{
+    temperature: forecast ? `${forecast.temperature} °C` : "—",
+    condition: forecast ? `${current.label} · ${forecast.isDay ? "Daytime" : "Nighttime"} · Open-Meteo` : "See the next six hours where you are.",
+    hours: forecast?.hours.map(hour => `${hour.time.slice(11,16)}  ${hour.temperature}°  ${condition(hour.code).label}`).join("\n") ?? "",
+    error, loading: status === "loading",
+  }} actions={{ locate }} /></AdaptiveWidgetSurface>;
 }

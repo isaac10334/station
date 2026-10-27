@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch server.ts",
-    "build": "bun build --target=browser --production ./index.html --outdir=dist",
+    "build": "bun ../../tooling/repo.ts assert-reproducible && bun build --target=browser --production ./index.html --outdir=dist",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

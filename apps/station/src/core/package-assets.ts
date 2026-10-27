@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { parseTheme } from "./theme-assets";
-import type { Asset } from "./model";
+import type { Asset } from "./asset-state";
 import { assetFiles, validSourcePath } from "./source-project";
 import type { WebBuild } from "./source-project";
+import { parseProgramAsset,hasProgramSource,type ProgramSnapshot } from './programs';
 
 const identity = z
   .string()
@@ -34,12 +35,12 @@ export const contributionSchema = z
   .object({
     id: identity,
     title: z.string().min(1).max(120),
-    role: z.enum(["widget", "editor", "command"]),
+    role: z.enum(["widget", "editor", "command", "service", "settings", "asset-type"]),
     assetId: z.string(),
     entry: z.string().default("index.html"),
     creation: z.enum(["menu", "contextual"]).default("menu"),
     assetKinds: z
-      .array(z.enum(["web-content", "component", "theme", "package"]))
+      .array(z.enum(["web-content", "component", "theme", "package", "widget-definition", "desk-template", "svg", "decision", "data-source", "script", "custom", "markdown", "note"]))
       .default([]),
     capabilities: z.array(z.string().max(160)).max(16).default([]),
     channels: z
@@ -72,8 +73,39 @@ export const manifestSchema = z
   .strict();
 export type ContributionManifest = z.infer<typeof manifestSchema>;
 export type Contribution = z.infer<typeof contributionSchema>;
+/** A contribution declares one host extension point. It is neither its source
+ * asset, an installed snapshot, a live instance nor an authority grant. */
+export const CONTRIBUTION_ROLES: Record<Contribution["role"], { label: string; description: string }> = {
+  widget: { label: "Widget", description: "A placeable workspace surface; each placement has its own instance." },
+  editor: { label: "Editor", description: "A surface bound to an explicitly opened compatible asset." },
+  command: { label: "Command", description: "An explicit invocation with input and output; opening it does not run it." },
+  service: { label: "Service", description: "A retained program with explicitly wired methods and lifecycle." },
+  settings: { label: "Settings", description: "A program-defined configuration surface and declared actions." },
+  "asset-type": { label: "Asset type", description: "A program-defined document schema, starter value and editor choices." },
+};
+
+/** Reject unsupported role/source pairs before preparation compiles any member.
+ * Source compatibility grants no activation, permission or placement authority. */
+export function contributionSource(contribution: Contribution, source: Asset): "program" | "component" | "web" {
+  if (hasProgramSource(source)) {
+    const expected = contribution.role === "command" ? "action" : contribution.role === "editor" ? "widget" : contribution.role;
+    if (parseProgramAsset(assetFiles(source)).role !== expected) throw new Error(`Contribution “${contribution.title}” needs a ${expected} program.`);
+    return "program";
+  }
+  if (contribution.role === "command" && source.kind === "component") return "component";
+  if ((contribution.role === "widget" || contribution.role === "editor") && source.kind === "web-content") return "web";
+  throw new Error(`Contribution “${contribution.title}” (${contribution.role}) has incompatible ${source.kind} source.`);
+}
 /** Installed snapshots are independent of subsequent authoring edits. Grants are reviewed separately. */
 export interface PackageInstallation {
+  programs?:Record<string,ProgramSnapshot>;
+  /** A new installed snapshot gets a new lifecycle ID, even when one member's
+   * bytes are unchanged. Sibling frames must not retain its predecessor's ports. */
+  installationId?: string;
+  /** Session-only authority provenance. Orphaned task installations load disabled. */
+  authorizationTaskId?: string;
+  /** Explicit metadata targets approved for this task installation, never guest-selected scope. */
+  metadataTargets?: string[];
   id: string;
   name: string;
   packageAssetId: string;
@@ -109,6 +141,15 @@ export function parseManifest(source: string): ContributionManifest {
       throw new Error("Invalid contribution entrypoint");
     if (new Set(item.slots.map((slot) => slot.id)).size !== item.slots.length)
       throw new Error("Slot IDs must be unique");
+    for (const slot of item.slots)
+      for (const definition of slot.definitions) {
+        if (/^station:editor\/(files|code|preview|problems)$/.test(definition)) {
+          if (item.role !== "editor") throw new Error("Built-in editor panes require an editor contribution.");
+        } else {
+          const target = manifest.contributions.find(candidate => candidate.id === definition);
+          if (!target || !["widget", "editor"].includes(target.role)) throw new Error(`Slot definition must reference a widget or editor: ${definition}`);
+        }
+      }
     for (const slot of item.slots)
       if (slot.initial.some((id) => !slot.definitions.includes(id)))
         throw new Error("Initial widgets must be allowed in their slot");
@@ -161,6 +202,7 @@ export function packageMembers(
     ...manifest.contributions.map((item) => item.assetId),
     ...manifest.themeAssets,
   ]);
+  for(const id of ids){const member=assets.find(asset=>asset.id===id);if(member&&hasProgramSource(member))for(const dependency of parseProgramAsset(member.files!).dependencies){if(ids.size>=64&&!ids.has(dependency))throw new Error('Package dependency limit');ids.add(dependency);}}
   for (const id of manifest.themeAssets) {
     const theme = assets.find(
       (asset) => asset.id === id && asset.kind === "theme",
@@ -227,7 +269,7 @@ export function importPackage(
       !asset ||
       typeof asset.id !== "string" ||
       map.has(asset.id) ||
-      !["component", "web-content", "theme", "package"].includes(asset.kind) ||
+      !["component", "web-content", "theme", "package", "widget-definition", "desk-template", "svg", "decision", "data-source", "script", "custom", "markdown", "note"].includes(asset.kind) ||
       typeof asset.name !== "string" ||
       !asset.files ||
       typeof asset.files !== "object" ||
@@ -250,6 +292,23 @@ export function importPackage(
   const imported = bundle.assets.map((asset: Asset) => {
     const files = { ...assetFiles(asset) },
       id = map.get(asset.id)!;
+    if (hasProgramSource(asset)) {
+      const draft = parseProgramAsset(files);
+      for (const dependency of draft.dependencies) {
+        const target = map.get(dependency);
+        if (!target) throw new Error('Script dependency is missing from the bundle');
+        if (target !== dependency) for (const path of Object.keys(draft.files))
+          if (/\.[jt]sx?$/.test(path)) draft.files[path] = draft.files[path]!.replaceAll(`@selected/${dependency}/`, `@selected/${target}/`);
+      }
+      draft.dependencies=draft.dependencies.map(id => map.get(id)!);
+      if(asset.kind==='widget-definition'){
+        const recipe=JSON.parse(files['widget.json']!);
+        files['widget.json']=JSON.stringify({...recipe,defaults:{...recipe.defaults,programDraft:draft}},null,2);
+      }else{
+        const { files: sources, ...metadata } = draft;Object.assign(files,sources);
+        files['program.json'] = JSON.stringify(metadata, null, 2);
+      }
+    }
     if (asset.kind === "package") {
       const manifest = parseManifest(files["station.json"]!);
       manifest.contributions.forEach((item) => {

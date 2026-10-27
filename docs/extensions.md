@@ -37,8 +37,37 @@ by the compiler or in the host document.
 
 ## Packages
 
+A **contribution** is one named extension point declared by a package. It says
+what Station may offer and which source implements it. It is not an asset, a live
+widget, an installation or a grant. Multiple contributions can share a source;
+multiple widget placements create independent instances of one contribution.
+
+| Role | Meaning | Supported source |
+| --- | --- | --- |
+| Widget | Placeable surface | Sandboxed web project or portable widget program |
+| Editor | Surface bound to an explicitly opened compatible asset | Sandboxed web project or portable widget program |
+| Command | Explicit input/output invocation | Verified Component source or portable action program |
+| Service | Retained methods with explicit wiring/lifecycle | Portable service program |
+| Settings | Declared configuration fields/actions | Portable settings program |
+| Asset type | Document schema, starter and editor declarations | Portable asset-type program |
+
+These roles retain their version-1 manifest identities. Source-role validation
+runs before preparation builds any member. Composition slots accept widget/editor
+definitions; built-in Files/Code/Preview/Problems parts require an editor owner.
+Declaring a service or asset type does not by itself start/register it: program
+activation, instance creation, bindings and Start retain their separate contracts.
+Not every role has a complete automatic installed-package discovery adapter today.
+
+The lifecycle is **author source → prepare snapshot → review/install → make
+available → place/open/invoke or explicitly activate/start**. Preparation is
+reviewable work, installation pins bytes and reviewed permissions, desk availability
+filters discovery, and runtime activation owns execution. None substitutes for
+another. Package Settings describes availability rather than claiming its toggle
+starts a service. Upgrading installs a fresh snapshot explicitly; editing the
+package asset never mutates an existing installed snapshot.
+
 A package asset owns `station.json`. Its version-1 manifest declares widget,
-editor and command contributions referencing local assets, plus theme members.
+editor, command, service, settings and asset-type contributions referencing local assets, plus theme members.
 Each contribution has an ID, title, role, entrypoint, creation visibility,
 supported asset kinds, capabilities, owner channels and named slots. Slots list
 eligible definitions and initial instances. `layout` optionally declares a tree of
@@ -97,6 +126,28 @@ CodeMirror and SDK guests receive live tokens. The SDK exposes `--station-*`
 variables and theme subscriptions without restarting the frame. Arbitrary CSS and
 external fonts are not theme data.
 
+Visual text/number fields retain local drafts while focused, including incomplete
+hex, decimal and IME input. Enter/blur validate before committing; Escape restores
+the latest source. Arrow keys change numeric drafts, settled by Enter/blur. A focus
+without changes never overwrites an external edit. Each visual edit patches the
+current validated JSON, retaining other concurrent token edits. Invalid JSON is
+repaired through Code; visual edits never replace it with an older snapshot.
+
+Hex (including alpha), rgb(a), hsl(a), and oklch literal colors share one validator
+and picker parser. Text edits retain their format and precision. The Stealth HSV
+picker converts intentional drag/channel edits to sRGB hex, with an explicit
+OKLCH clipping notice; gray/black retain the chosen hue. Arbitrary color variables,
+CSS rules, fonts and resources remain outside the schema.
+
+Semantic icon search matches names and saved asset/path references. Catalog glyphs
+preview the edited theme independently of the active desk theme. Missing/unsupported
+files retain their reference and show recovery instructions; selecting Built-in
+removes the override. SVGs are monochrome image masks, limited to 32 KiB and 256
+elements. Scripts, CSS, animation, text, external resources and escaped attribute
+values are rejected. Resource-scoped collaboration viewer policy is rechecked by
+the store on every edit/remove/rename, including previously acquired SDK editor
+handles. Private, unshared assets remain editable.
+
 Workspace persistence still uses browser local storage and its size limits. Writes
 must succeed before state publication; failed imports/installations cannot partially
 change the active workspace. Keep exported source bundles as portable backups.
@@ -115,3 +166,22 @@ and the package installation updated. Import never brings compiled bytes or gran
 ## Forks, SVG and UI controls
 
 Use **Fork package source** on an installed contribution/editor to copy its installed source into independent authoring assets. The fork gets a new manifest identity and must be installed explicitly. Semantic icons may reference SVG files in source assets; package export includes/remaps these references. Design and Code theme views share one JSON source. Portable `@station/ui` is curated alongside the SDK, and editor panes can be restored individually. See [the implemented checkpoint and future framework](forkable-workspaces.md), including the source-only collaboration limits and SVG studio import example.
+
+
+## Agent-created packages and scoped metadata
+
+Runtime authoring can use the shared command registry through CLI/MCP or an
+explicit internal-agent task. Preparation produces immutable source/build snapshots
+without installation; task installation permits only declared capabilities within
+the task's reviewed scope. These installations retain authorizationTaskId provenance
+and load disabled after restart. Ending the task disables them and clears grants,
+while authored source remains forkable. Such grants are never exported as source.
+
+The SDK exports the `assetMetadata` identity and `AssetMetadata` type. Acquire
+`station:assets/metadata@1.0.0` only when declared and granted; get(assetId) returns
+metadata and its state version, patch(assetId, patch, version) rejects conflicts,
+and subscriptions are acquisition-owned. The host binds target asset IDs, checks
+live task permissions on every call and exposes no source through this contract.
+Task-based asset catalog results are scoped to approved/created assets. Legacy
+capability IDs retain their original contracts. Task packages cannot delegate to
+installed commands until all callee effects can be intersected safely.

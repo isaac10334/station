@@ -34,6 +34,9 @@ export type WorkspaceSwitcherProps = Omit<React.ComponentProps<"button">, "value
   onValueChange?: (id: string, workspace: Workspace) => void | Promise<unknown>;
   /** Adds a create row. Receives whatever was typed in the search, or "" from the plain row. */
   onCreate?: (name: string) => void;
+  onSettings?: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
   /**
    * The modifier for the 1–9 shortcuts, or false for none. Browsers keep ⌘1–9 for their own tabs,
    * so a web app usually wants "alt" or "ctrl"; "mod" (⌘ on a Mac, Ctrl elsewhere) suits desktop shells.
@@ -55,6 +58,9 @@ export function WorkspaceSwitcher({
   defaultValue,
   onValueChange,
   onCreate,
+  onSettings,
+  onDelete,
+  canDelete = true,
   shortcut = "mod",
   compact = false,
   container,
@@ -237,6 +243,7 @@ export function WorkspaceSwitcher({
       <Combobox.Portal container={container}>
         <Combobox.Positioner align="start" sideOffset={6} collisionPadding={8} className="z-(--z-popover) outline-none">
           <Combobox.Popup
+            data-native-overlay=""
             aria-label="Switch workspace"
             data-workspace-switcher=""
             className={cn(
@@ -311,6 +318,10 @@ export function WorkspaceSwitcher({
                 }
               </Combobox.List>
             </div>
+            {(onSettings || onDelete) && <div className="flex flex-col gap-1 border-t border-line p-1">
+              {onSettings && <button type="button" className="rounded-lg px-3 py-2 text-left text-sm text-fg-2 hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus" onClick={() => { setOpen(false); onSettings(); }}>Settings</button>}
+              {onDelete && <button type="button" disabled={!canDelete} title={canDelete ? undefined : "Create another workspace before deleting the last one"} className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger-soft focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50" onClick={() => { setOpen(false); onDelete(); }}>Delete workspace…</button>}
+            </div>}
           </Combobox.Popup>
         </Combobox.Positioner>
       </Combobox.Portal>

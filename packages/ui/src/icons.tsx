@@ -1,4 +1,4 @@
-import { useId, useSyncExternalStore, type SVGProps } from "react";
+import { useId, useState, useSyncExternalStore, type SVGProps } from "react";
 import { subscribeIcons, getIcons } from "./theme-icons.js";
 
 // One icon set for Stealth UI. 16px grid, 1.4 stroke, round caps and joins,
@@ -6,7 +6,10 @@ import { subscribeIcons, getIcons } from "./theme-icons.js";
 // the label. Need one that isn't here? Draw it inline in your component on the
 // same grid with the same stroke, never import a second icon library.
 
-export type IconProps = SVGProps<SVGSVGElement> & { size?: number };
+export type IconProps = SVGProps<SVGSVGElement> & {
+  size?: number;
+  builtIn?: boolean;
+};
 
 const base = (size = 16): SVGProps<SVGSVGElement> => ({
   width: size,
@@ -22,18 +25,24 @@ const base = (size = 16): SVGProps<SVGSVGElement> => ({
 });
 
 const make = (paths: React.ReactNode, name: string) => {
-  const Icon = ({ size, ...rest }: IconProps) => {
+  const Icon = ({ size, builtIn, ...rest }: IconProps) => {
     const override = useSyncExternalStore(subscribeIcons, getIcons, getIcons)[
       name
     ];
     const mask = useId();
+    const [failed, setFailed] = useState<string | null>(null);
     return (
       <svg {...base(size)} {...rest}>
-        {override ? (
+        {override && override !== failed && !builtIn ? (
           <>
             <defs>
               <mask id={mask} style={{ maskType: "alpha" }}>
-                <image href={override} width="16" height="16" />
+                <image
+                  href={override}
+                  width="16"
+                  height="16"
+                  onError={() => setFailed(override)}
+                />
               </mask>
             </defs>
             <rect
@@ -528,6 +537,7 @@ export const RotateCcw = make(
   </>,
   "RotateCcw",
 );
+export const Redo = make(<path d="M13 6a5 5 0 1 0 0 4M13 2v4H9" />, "Redo");
 export const Pin = make(<path d="m5 2 6 0-1 4 3 3H9v5H7V9H3l3-3z" />, "Pin");
 
 export const Shield = make(

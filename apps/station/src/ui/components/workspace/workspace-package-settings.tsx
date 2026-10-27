@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import type { Workspace } from "../../../core/model";
+import type { Workspace } from "../../../core/workspace-state";
 import { deps } from "../../../composition";
-import { importPackage } from "../../../core/package-assets";
+import { importPackage, CONTRIBUTION_ROLES } from "../../../core/package-assets";
 import { Plus, Upload, ChevronDown, Terminal } from "../../lib/icons";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
@@ -52,7 +52,7 @@ export function WorkspacePackageSettings({
     <div className="flex flex-col gap-8">
       <SettingsSection
         title="Installed packages"
-        description="Packages are shared across this workspace. Choose which contributions run on this desk."
+        description="Packages install a reviewed snapshot of definitions. Choose which contributions are available on this desk; starting or invoking them is separate."
         action={
           <Button size="sm" variant="outline" onClick={onCreate}>
             <Plus size={14} />
@@ -113,7 +113,7 @@ export function WorkspacePackageSettings({
                     <div key={id} className="flex flex-col gap-3">
                       <Switch
                         label={contribution.title}
-                        description={`${contribution.role[0]!.toUpperCase()}${contribution.role.slice(1)} · Available on this desk`}
+                        description={`${CONTRIBUTION_ROLES[contribution.role].label} · ${CONTRIBUTION_ROLES[contribution.role].description}`}
                         checked={!desk.disabledContributions.includes(id)}
                         disabled={!installation.enabled}
                         size="sm"

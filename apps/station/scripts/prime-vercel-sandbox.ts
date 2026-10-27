@@ -31,7 +31,7 @@ try {
   const paths = ["Cargo.toml", "Cargo.lock", "src/lib.rs", "wit/world.wit", "wit/deps/wasi-clocks/monotonic-clock.wit", "wit/deps/wasi-clocks/types.wit"];
   await sandbox.writeFiles(await Promise.all(paths.map(async (path) => ({
     path: `/vercel/unit/${path}`,
-    content: Buffer.from(await Bun.file(new URL(`../../../components/greeting/${path}`, import.meta.url)).arrayBuffer()),
+    content: new Uint8Array(await Bun.file(new URL(`../../../components/greeting/${path}`, import.meta.url)).arrayBuffer()),
   }))));
   await command("/vercel/.cargo/bin/cargo", ["+nightly-2026-09-08", "fetch", "--locked", "--target", "wasm32-wasip2", "--manifest-path", "/vercel/unit/Cargo.toml"]);
   await sandbox.update({ networkPolicy: "deny-all" });

@@ -4,7 +4,7 @@ import {
   parseManifest,
   type PackageInstallation,
 } from "./package-assets";
-import type { Asset, DataAsset } from "./model";
+import type { Asset, DataAsset } from "./asset-state";
 
 /** Fork the installed snapshot, including deleted authoring sources. No grants or bytes are copied. */
 export function forkInstallation(

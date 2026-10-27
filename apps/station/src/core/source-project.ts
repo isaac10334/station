@@ -1,4 +1,4 @@
-import type { Asset } from "./model";
+import type { Asset } from "./asset-state";
 
 /** Shared authored-file contract. Runtime artifacts and permission ledgers are separate. */
 export interface SourceProject {

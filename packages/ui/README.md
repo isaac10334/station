@@ -19,3 +19,17 @@ image masks, not injected markup. Host controls retain their existing interactio
 motion; SVG animation and arbitrary CSS are outside this first icon-override format.
 
 The host and marketing site also share `@station/ui/tokens.css`, `fonts.css` and `theme-toggle`. The circle reveal has reduced-motion and unsupported-API fallbacks. These rendering helpers grant no permission to alter Station app settings. `scripts/brand-icons.ts` emits SVG/ICO/PNG from one S polygon; fonts are bundled locally.
+
+`Icon` accepts `builtIn` for catalog/recovery previews that must bypass the active
+override. Invalid image loads fall back to the built-in glyph. Override snapshots
+notify only when their URLs change; the host forwards icon-only updates to live
+guest sessions without replacing their frames.
+
+
+## Package ownership and verification
+
+Public exports are the root controls, icons, theme-icons, theme-toggle and CSS tokens/fonts. Depends on public Station contracts, font assets and React peers; never on app implementations. Dispose theme bindings and subscriptions with their mounted surface. Run `bun run repo verify @station/ui`; rendering acceptance belongs to the consuming app.
+
+Builds compile into a temporary sibling of `dist` and publish complete changed
+files by rename. Identical outputs retain their timestamps, so running repository
+checks beside desktop HMR does not expose partially written imported modules.

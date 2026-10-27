@@ -7,6 +7,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
+  --color-selected: var(--selected);
+  --color-focus: var(--focus-ring);
   --radius-sm: 3px;
   --radius-md: 5px;
   --radius-lg: 7px;

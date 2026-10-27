@@ -67,7 +67,7 @@ function revealActive(list: HTMLElement, smooth: boolean) {
   if (target !== null) list.scrollTo({ left: target, behavior: smooth ? "smooth" : "auto" });
 }
 
-export type TabsProps = Omit<BaseTabs.Root.Props, "className" | "orientation"> & {
+export type TabsProps = Omit<BaseTabs.Root.Props, "className"> & {
   /** A hairline with a sliding underline, or a soft pill that slides behind the active tab. */
   variant?: Variant;
   size?: Size;

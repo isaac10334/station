@@ -1,3 +1,4 @@
+import { useOverlayContainer } from "./overlay-container";
 // Adapted from https://stealth.pm/ui/model-picker. Host metadata never grants tool authority.
 "use client";
 import { Select } from "@base-ui/react/select";
@@ -98,6 +99,7 @@ export function ModelPicker({
   container,
   className,
 }: ModelPickerProps) {
+  const overlayContainer = useOverlayContainer();
   const [inner, setInner] = useState<string | null>(
     defaultValue ?? models.find((m) => !m.disabled)?.value ?? null,
   );
@@ -191,7 +193,7 @@ export function ModelPicker({
         </Select.Icon>
       </Select.Trigger>
 
-      <Select.Portal container={container}>
+      <Select.Portal container={container ?? overlayContainer}>
         <Select.Positioner
           alignItemWithTrigger={false}
           side={side}
@@ -201,6 +203,7 @@ export function ModelPicker({
           className="z-(--z-popover) outline-none select-none"
         >
           <Select.Popup
+            data-native-overlay=""
             className={cn(
               "flex w-[min(22rem,var(--available-width))] origin-(--transform-origin) flex-col overflow-hidden rounded-xl border border-line-2 bg-raised text-fg shadow-pop outline-none",
               "max-h-[min(30rem,var(--available-height))]",

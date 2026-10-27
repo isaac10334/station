@@ -38,6 +38,7 @@ self.onmessage = (event) => {
   const { id, op } = event.data;
   try {
     if (op === "init") {
+      if(event.data.program){options.lib=['lib.es2022.d.ts'];options.jsx=ts.JsxEmit.React;options.jsxFactory='ui.h';options.paths={...options.paths,'@loop-kit/ui':['/node_modules/@loop-kit/ui/index.d.ts'],'@loop-kit/scripting':['/node_modules/@loop-kit/scripting/index.d.ts'],'@loop-kit/capabilities':['/node_modules/@loop-kit/capabilities/index.d.ts']};}
       libraries = Object.fromEntries(
         Object.entries(event.data.resources).map(([path, source]) => [
           `/${path}`,

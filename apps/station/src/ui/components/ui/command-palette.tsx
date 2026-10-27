@@ -1,3 +1,4 @@
+import { useOverlayContainer } from "./overlay-container";
 "use client";
 import { observeResize } from "../../lib/observe-resize";
 
@@ -5,8 +6,8 @@ import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog } from "@base-ui/react/dialog";
 import { animate, useMotionValue, useReducedMotion, motion, type AnimationPlaybackControls } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { scoreCommand } from "../../lib/command-search";
-export { scoreCommand } from "../../lib/command-search";
+import { scoreCommand } from "../../../features/navigation/domain/command-search";
+export { scoreCommand } from "../../../features/navigation/domain/command-search";
 import { cn } from "../../lib/utils";
 import { Loader, Search } from "../../lib/icons";
 import { spring } from "../../lib/motion";
@@ -18,6 +19,7 @@ import { Kbd, isTypingTarget, matchShortcut, usePlatform } from "./kbd";
 /* ------------------------------------------------------------------ */
 
 export type CommandItem = {
+  action?: import('@loop-kit/ui').ActionDescriptor;
   id: string;
   label: string;
   icon?: React.ReactNode;
@@ -295,6 +297,7 @@ export function CommandPalette({
   className,
   children,
 }: CommandPaletteProps) {
+  const overlayContainer = useOverlayContainer();
   const reduce = !!useReducedMotion();
   const platform = usePlatform();
   const [open, setOpen] = useControllableState({ value: openProp, defaultValue: defaultOpen, onChange: onOpenChange });
@@ -386,7 +389,7 @@ export function CommandPalette({
       }}
     >
       {children}
-      <Dialog.Portal container={container}>
+      <Dialog.Portal container={container ?? overlayContainer}>
         <Dialog.Backdrop data-instant={instant ? "" : undefined} className={cn(contained ? "absolute" : "fixed", paletteClasses.backdrop)} />
         <Dialog.Viewport className={cn(contained ? "absolute pt-14" : "fixed pt-[12vh]", paletteClasses.viewport)}>
           <Dialog.Popup
@@ -583,6 +586,9 @@ export function CommandRow({ entry, busy, failure, onRun, trailing }: CommandRow
     <Autocomplete.Item
       value={entry}
       disabled={item.disabled}
+      data-action-id={item.action?.id}
+      data-action-source={item.action?.source.id}
+      data-action-authority={item.action?.requiredAuthority.join(' ')}
       onClick={(e) => onRun(e.detail === 0)}
       aria-busy={busy || undefined}
       data-failed={failure ? "" : undefined}

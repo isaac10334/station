@@ -2,13 +2,35 @@ import type { ReactNode } from "react";
 import { Search } from "lucide-react";
 import { IconAction } from "../ui/icon-action";
 import { ActionTooltip } from "../ui/action-tooltip";
+import { DockToolbar } from "../../docking/react";
+import { TOOLBAR_TOOL_DEFINITIONS } from "../../../core/toolbar-tools";
+import type { ActionDescriptor } from "@loop-kit/ui";
+import { SemanticIcon } from "../../semantic-icons";
+
+/** A protected internal definition renders host controls without serializing callbacks. */
+export function BuiltinToolbarTool({
+  id,
+  children,
+}: {
+  id: string;
+  children: ReactNode;
+}) {
+  const definition = TOOLBAR_TOOL_DEFINITIONS[id];
+  if (!definition) throw new Error(`Unknown toolbar tool: ${id}`);
+  return (
+    <span
+      className="contents"
+      data-widget-definition={definition.id}
+      data-protected-widget
+    >
+      {children}
+    </span>
+  );
+}
 
 /** A shell action's presentation; callers own navigation, dock commands, and services. */
 export type SurfaceToolbarAction = {
-  id: string;
-  label: string;
-  icon: ReactNode;
-  onClick: () => void;
+  action: ActionDescriptor;
   disabled?: boolean;
   secondary?: boolean;
 };
@@ -18,22 +40,30 @@ export function MainSurfaceToolbar({
   actions,
   onSearch,
   children,
+  onAction,
 }: {
   history: SurfaceToolbarAction[];
   actions: SurfaceToolbarAction[];
   onSearch: () => void;
   children: ReactNode;
+  onAction: (action: ActionDescriptor) => unknown;
 }) {
   const render = (action: SurfaceToolbarAction) => (
-    <IconAction
-      key={action.id}
-      label={action.label}
-      disabled={action.disabled}
-      className={action.secondary ? "dock-mobile-secondary" : undefined}
-      onClick={action.onClick}
-    >
-      {action.icon}
-    </IconAction>
+    <BuiltinToolbarTool key={action.action.id} id={action.action.id}>
+      <IconAction
+        key={action.action.id}
+        label={action.action.label}
+        disabled={action.disabled}
+        className={action.secondary ? "dock-mobile-secondary" : undefined}
+        onClick={() => {
+          void onAction(action.action);
+        }}
+        data-action-id={action.action.id}
+        data-action-source={action.action.source.id}
+      >
+        {action.action.icon && <SemanticIcon icon={action.action.icon} />}
+      </IconAction>
+    </BuiltinToolbarTool>
   );
   return (
     <div
@@ -42,19 +72,22 @@ export function MainSurfaceToolbar({
       aria-label="Main surface tools"
     >
       {history.map(render)}
-      <ActionTooltip label="Search assets and panels (Ctrl+K)">
-        <button
-          type="button"
-          className="dock-search-button"
-          aria-label="Search workspace"
-          onClick={onSearch}
-        >
-          <Search size={15} />
-          <span>Search workspace</span>
-        </button>
-      </ActionTooltip>
+      <BuiltinToolbarTool id="search">
+        <ActionTooltip label="Search assets and panels (Ctrl+K)">
+          <button
+            type="button"
+            className="dock-search-button"
+            aria-label="Search workspace"
+            onClick={onSearch}
+          >
+            <Search size={15} />
+            <span>Search workspace</span>
+          </button>
+        </ActionTooltip>
+      </BuiltinToolbarTool>
       <span className="spacer" />
       {actions.map(render)}
+      <DockToolbar />
       {children}
     </div>
   );

@@ -1,0 +1,33 @@
+app = "station-cloud-ijhar"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile.cloud"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3014"
+  STATION_ACCOUNT_ORIGIN = "https://station-cloud-ijhar.fly.dev"
+
+[http_service]
+  internal_port = 3014
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 100
+    hard_limit = 150
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

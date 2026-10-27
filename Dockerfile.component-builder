@@ -1,0 +1,13 @@
+# Operator-built compiler image. Deploy by immutable digest; never select from an asset.
+FROM oven/bun:1.3.14 AS bun
+FROM rust:1.92-bookworm
+RUN rustup toolchain install nightly-2026-09-08 --profile minimal && rustup target add wasm32-wasip2 --toolchain nightly-2026-09-08
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+COPY components/greeting /opt/warmup
+RUN cargo +nightly-2026-09-08 build --release --locked --target wasm32-wasip2 --manifest-path /opt/warmup/Cargo.toml && chmod -R a+rX /usr/local/cargo /usr/local/rustup
+COPY apps/station/src/core/build-contract.ts /opt/station/src/core/build-contract.ts
+COPY apps/station/server/component-builder-entry.ts /opt/station/server/component-builder-entry.ts
+RUN printf 'import "./server/component-builder-entry.ts";\n' > /opt/station/build.ts
+USER 10001:10001
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/bun", "/opt/station/build.ts"]
