@@ -15,7 +15,7 @@ if (process.platform === "win32") {
       const code = `$result = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${quote(script)} -Action Update -Plan ${acceptance ? "-Acceptance" : ""}; if ($LASTEXITCODE -ne 0) { throw 'Plan failed' }; $plan=$result | ConvertFrom-Json; if ($plan.identifier -ne '${acceptance ? "com.isaacharvey.station.acceptance" : "com.isaacharvey.station"}' -or $plan.port -ne ${acceptance ? 43158 : 43157} -or !$plan.preserveProfile -or $plan.force -or $plan.githubUpdates -or !$plan.build -or !$plan.replace) { throw 'Incorrect plan' }`;
       expect(run(code).exitCode).toBe(0);
     }
-  });
+  }, 30_000); // Several cold PowerShell startups can exceed Bun's default five seconds on CI.
 
   test("installer rejects stale bytes and cross-profile stamps before any process or install change", async () => {
     const directory = await mkdtemp(join(tmpdir(), "station-desktop-test-"));
