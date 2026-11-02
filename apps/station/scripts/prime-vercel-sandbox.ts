@@ -1,15 +1,14 @@
 import { Sandbox } from "@vercel/sandbox";
-import { writeFile } from "node:fs/promises";
+import { rename, unlink, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { readVercelBuildConfig, vercelBuildCredentials } from "../server/component-compiler-vercel";
 
-const token = process.env.VERCEL_AUTH_TOKEN;
-if (!token && !process.env.VERCEL_OIDC_TOKEN)
-  throw new Error("Vercel authentication is missing. Run vercel link and vercel env pull.");
 const configUrl = new URL("../vercel-sandbox.json", import.meta.url);
-const config = await Bun.file(configUrl).json() as {
-  teamId: string; projectId: string; snapshotId: string; toolchain: string;
-};
+const pendingUrl = new URL("../vercel-sandbox.pending.json", import.meta.url);
+const hasPending = await Bun.file(pendingUrl).exists();
+const config = await readVercelBuildConfig(fileURLToPath(hasPending ? pendingUrl : configUrl), true);
 const sandbox = await Sandbox.create({
-  ...(token ? { token, teamId: config.teamId, projectId: config.projectId } : {}),
+  ...vercelBuildCredentials(config),
   source: { type: "snapshot", snapshotId: config.snapshotId },
   timeout: 15 * 60_000, persistent: false, networkPolicy: "allow-all",
   tags: { purpose: "station-dependencies" },
@@ -42,7 +41,11 @@ try {
   await command("rm", ["-rf", "/vercel/unit"], "/vercel");
   const snapshot = await sandbox.snapshot({ expiration: 30 * 24 * 60 * 60_000 });
   config.snapshotId = snapshot.snapshotId;
-  await writeFile(configUrl, JSON.stringify(config, null, 2) + "\n");
+  config.stage = "ready";
+  const temporaryUrl = new URL(`../vercel-sandbox.${crypto.randomUUID()}.tmp`, import.meta.url);
+  await writeFile(temporaryUrl, JSON.stringify(config, null, 2) + "\n");
+  await rename(temporaryUrl, configUrl);
+  if (hasPending) await unlink(pendingUrl);
   console.log(`Build-ready snapshot: ${snapshot.snapshotId}`);
 } finally {
   await sandbox.delete();

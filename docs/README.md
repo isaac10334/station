@@ -1,7 +1,7 @@
 # Station documentation
 
-Documentation routes consolidated on 2026-10-27. Dates on older acceptance records
-describe those runs; they do not establish acceptance of later edits.
+Routes reviewed October 30, 2026. Dated acceptance describes the recorded target;
+later source changes need their own verification.
 
 | Current contract | Start here |
 | --- | --- |
@@ -22,8 +22,10 @@ describe those runs; they do not establish acceptance of later edits.
 | Keyboard shortcuts, desktop-global bindings and Inbox capture | [Shortcuts and capture](shortcuts-and-capture.md) |
 | Packages and SDK | [Extensions](extensions.md), [composition](composition-and-decisions.md) |
 | Loop Kit install, development links and releases | [Dependency workflow](loop-kit-packages.md) |
+| Independent package, WIT tooling and build proof | [Independent package proof](independent-package-proof.md) |
+| Proposed portable development/runtime work | [Loop documentation index](C:/src/ilt/loop/docs/README.md); Station adoption stays in the [engineering plan](engineering-plan.md) |
 | Loop host ownership, leases and task lifecycle | [Host lifecycle contract](https://github.com/isaac10334/loop/blob/main/packages/host/LIFECYCLE.md) |
-| Desktop and native browsing | [Desktop](desktop.md), [native browser](native-browser.md) |
+| Desktop, canary release checklist and native browsing | [Desktop](desktop.md#canary-release-checklist), [native browser](native-browser.md) |
 | Component execution and grants | [Runtime profile](component-runtime-profile.md) |
 
 Keep implementation contracts beside the code when possible. These documents
@@ -42,12 +44,13 @@ explain boundaries and workflows; one canonical document should own each topic.
 - Portable runtime engine alternatives, container compiler availability and GPU
   display experiments retain their independent gates in the Programmable foundation.
 - Marketing publication, reviewed static export and a narrowly granted publisher
-  remain separate from workspace authoring. See the [remaining checkpoints](prompts/next-station-checkpoints.md).
+  remain separate from workspace authoring. See [static export and publishing](core-systems-review.md#static-export-and-publishing).
 
 ## Exploratory and historical material
 
-`explorations/` contains proposals, not a second specification. The superseded UI
-proposal's remaining work is consolidated in [Workspace surfaces](explorations/surface-system.md#source-aware-editing-drawing-and-gpu).
+`explorations/` contains proposals. The October 8 asset/programming roadmap and
+old checkpoint prompts have been consolidated into the owner documents above.
+Keep unresolved drawing/GPU work in [Workspace surfaces](explorations/surface-system.md#source-aware-editing-drawing-and-gpu).
 The original dock migration's decisions belong to [Decisions](decisions.md) and
 its compact historical evidence is in the [docking contract](../apps/station/src/ui/docking/README.md#historical-migration-evidence).
 The old package audit is summarized in the Engineering plan instead of maintaining

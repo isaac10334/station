@@ -7,10 +7,31 @@ import { isLayoutPanel, type Panel } from "../core/docking";
 import { WidgetView, type WidgetActions } from "./widget-views";
 import type { Workspace } from "../core/workspace-state";
 import { WebWidgetInstance } from "./web-widget-instance";
-import { WidgetFrame, type WidgetFrameProps } from "./components/workspace/widget-frame";
+import { WidgetFrame, useWidgetToolbarControls, type WidgetFrameProps } from "./components/workspace/widget-frame";
 import { LayoutWidget } from "./components/workspace/layout-widget";
 import { useRef, useState } from "react";
 import { DashboardControls } from "./components/workspace/dashboard-controls";
+import { Button } from "./components/ui/button";
+import { Plus, SlidersHorizontal } from "lucide-react";
+import { hostSurface } from "../core/docking";
+
+/** An ordinary grid page owns its child slots; each new tab gets independent
+ * placement state while widget/service lifetimes remain with the DockHost. */
+function WorkspaceGrid({ panel }: { panel: Extract<Panel, { kind: "widget" }> }) {
+  const { layout, openCatalog, editingWidgets, setEditingWidgets, panelTitle } = useDockController();
+  const controls = useWidgetToolbarControls();
+  const root = layout.containers[panel.id];
+  const empty = !root || root.kind === "grid" && root.cells.length === 0 || root.kind === "stack" && root.tabs.length === 0;
+  const add = () => openCatalog({ surface: hostSurface(layout, panel.id) ?? "main", ownerId: panel.id, intent: "append" });
+  return <div className="workspace-grid-page flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0"><h2 className="truncate text-lg font-semibold tracking-tight">{panelTitle(panel)}</h2><p className="mt-1 text-xs text-fg-3">Make room for what you’re working on.</p></div>
+      <div className="flex items-center gap-2"><Button size="sm" variant="ghost" aria-pressed={editingWidgets} onClick={() => setEditingWidgets(!editingWidgets)}><SlidersHorizontal size={14} />{editingWidgets ? "Done arranging" : "Arrange"}</Button><Button size="sm" onClick={add}><Plus size={14} />Add widget</Button>{controls}</div>
+    </div>
+    {empty && <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-line p-6 text-center"><h3 className="text-sm font-medium">A fresh slate</h3><p className="max-w-xs text-sm text-fg-3">Add your first widget, then arrange a workspace that fits.</p><Button size="sm" variant="outline" onClick={add}><Plus size={14} />Add your first widget</Button></div>}
+    <LayoutWidget ownerId={panel.id} className="min-h-0 flex-1" />
+  </div>;
+}
 
 /** A home surface contains the widget grid; placement lives in the dock document. */
 export function Dashboard({ workspace, onRename }: { workspace: Workspace; onRename: (name: string) => void }) {
@@ -68,8 +89,8 @@ export function DockWidget({ panel, workspace, actions, frame }: {
   const { panelTitle } = useDockController();
   const title = panelTitle(panel);
   const content = <WidgetView id={panel.widget} instanceId={panel.id} workspace={workspace} actions={actions} />;
-  return <WidgetFrame {...frame} integratedToolbar={panel.widget === "data-view" || panel.widget === "desk-controls"} panel={panel} title={title}>
-    {isLayoutPanel(panel) ? <LayoutWidget ownerId={panel.id} className="station-widget-content station-layout-content" />
+  return <WidgetFrame {...frame} integratedToolbar={panel.widget === "data-view" || panel.widget === "desk-controls" || panel.widget === "main-surface"} panel={panel} title={title}>
+    {panel.widget === "main-surface" ? <WorkspaceGrid panel={panel} /> : isLayoutPanel(panel) ? <LayoutWidget ownerId={panel.id} className="station-widget-content station-layout-content" />
       : panel.widget === "widget-editor" ? <WidgetInstanceEditor panelId={panel.id} />
       : panel.widget === "docking-inspector" ? <div className="station-widget-content flex min-h-0 overflow-hidden"><DockInspector panelId={panel.id} /></div>
         : panel.widget === "desk-controls" || panel.widget === "data-view" || panel.widget === "note" || panel.widget === "ide" || panel.widget === "desk-settings" || panel.widget === "ai-chat" || panel.widget === "browser-tab" ? <div className="station-widget-content flex min-h-0 overflow-hidden">{content}</div>

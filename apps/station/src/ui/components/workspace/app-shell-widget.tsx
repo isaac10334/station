@@ -47,7 +47,7 @@ export function AppShellWidget({
   children: ReactNode;
 }) {
   const desktop = panel.widget === "desktop-shell";
-  const { panelTitle, activeFloating, raiseFloating, openCatalog } =
+  const { panelTitle, activeFloating, raiseFloating, openCatalog, highlightedWidget } =
     useDockController();
   const sidebarHasPanels = surfacePanels(layout, "sidebar").length > 0;
   const windows = Object.keys(layout.floating).filter(
@@ -60,6 +60,7 @@ export function AppShellWidget({
     <div
       className={`app density-${density} ${sidebarHasPanels ? "has-sidebar-dock" : ""} ${desktop ? "station-desktop-shell" : ""}`}
       data-widget-instance={panel.id}
+      data-highlighted={highlightedWidget === panel.id || undefined}
       data-root-widget={panel.widget}
       data-sidebar-side={layout.sidebarSide}
       data-sidebar-hidden={layout.hidden.sidebar || undefined}

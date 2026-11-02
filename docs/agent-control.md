@@ -117,6 +117,62 @@ Automated tests cover a real stdio MCP client, policy denials, revisions/dedupli
 
 The architecture follows the useful headless/live backend separation in [SoundCraft](https://github.com/storytold/soundcraft/blob/main/crates/automation/src/lib.rs), without inheriting another application's transport trust assumptions. [MCP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) defines message/transport conventions, not Station's permission policy.
 
+## Codex workflow: CLI first
+
+The CLI is already a complete command transport; Codex can call it through its
+terminal tool. Installing/configuring MCP is optional, and a missing MCP connection
+does not require another automation server. Start with these steps:
+
+1. Identify the intended browser origin or installed executable and port. Inspect
+   listener owners before launch/restart. Normal desktop is 43157, isolated
+   acceptance is 43158, desktop development is 43159; browser dev uses its printed
+   URL. Do not infer which instance the user means from a port alone.
+2. Discover that exact supported origin. A 404 means the broker is disabled or
+   absent, not an authorization problem. `bun run dev:agent` creates a separate
+   opt-in numeric-loopback origin; it does not control an already-open browser
+   workspace. The current CLI/bootstrap requires `127.0.0.1`; `localhost` has
+   separate browser storage and must not be silently rewritten or migrated.
+3. Pair from **Desk settings → Agents** in the intended root renderer. Review
+   exact existing assets and operations, then save the connection securely. Start
+   with inspection only for a readiness check; grant creation, layout, execution
+   or source edits only when the task needs them. The connection file stays
+   outside the repo. Never read its token into a prompt or command output.
+4. Use the paired catalog and inspection, then inspect schemas before acting:
+
+~~~powershell
+bun run station:control --discover --instance http://127.0.0.1:43158
+bun run station:control --connect <private-credential.json> --method commands.list
+bun run station:control --connect <private-credential.json> --method state.inspect
+~~~
+
+5. Mutations use the inspected epoch/revision and a stable request ID. Wait for
+   returned operations to terminate; verify source/artifact currency and inspect
+   the actual UI separately. Renewal/re-pairing after expiry or renderer reload
+   is explicit. Report a missing operation rather than inventing an API or using
+   an owner token. Discovery, catalog access, scoped read, mutation and rendered
+   output are separate acceptance gates.
+
+Persist this procedure in repository guidance, not reusable credentials or
+volatile renderer IDs. `commands.list` is the live capability reference for each
+task; a static list or MCP annotation is not authority. A read-only discovery
+result cannot establish that Codex is in control.
+
+### Closing a view versus quitting Station
+
+`dock.apply` may close an authorized widget instance under normal graph policy.
+That is not permission to quit the application. There is currently no paired
+general-purpose `application.quit`/shutdown command. Browser-tab lifecycle belongs
+to the browser plugin; ordinary web pages cannot reliably close tabs they did not
+open. Desktop Quit belongs to the native app/tray and disposes its owned work;
+the window X can merely hide to tray.
+
+The private development supervisor quit endpoint is not an agent task API and
+must not be exposed or reused as one. Managed acceptance restart authority remains
+limited to the verified installation described in [Desktop](desktop.md). Do not
+exercise Quit merely to demonstrate that a connection works on a user-active app.
+A future task-callable lifecycle operation needs a distinct reviewed authority,
+unsaved/in-flight-work semantics, exact instance targeting and denial tests.
+
 
 
 

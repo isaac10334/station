@@ -184,7 +184,7 @@ async function resolveCanary() {
     if (!response.ok) throw new Error("Release lookup failed");
     const asset = canaryInstaller(await response.json());
     link.href = asset.url;
-    status.textContent = `Windows x64 · Canary · ${Math.round(asset.size / 1024 / 1024)} MB`;
+    status.textContent = `Windows x64 · Canary · Installer · ${Math.round(asset.size / 1024 / 1024)} MB`;
   } catch {
     status.textContent =
       "Windows x64 · Canary · Check release notes if unavailable";

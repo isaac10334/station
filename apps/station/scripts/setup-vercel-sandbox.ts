@@ -1,14 +1,11 @@
 import { Sandbox } from "@vercel/sandbox";
 import { writeFile } from "node:fs/promises";
-
-const token = process.env.VERCEL_AUTH_TOKEN;
-if (!token && !process.env.VERCEL_OIDC_TOKEN)
-  throw new Error("Vercel authentication is missing. Run vercel link and vercel env pull.");
+import { vercelBuildCredentials } from "../server/component-compiler-vercel";
 
 const teamId = "team_JVoYCgv0HQNBHmoIKBk25D4j";
 const projectId = "prj_My7GAEBPFmWJDLjBAFHAjzhV3sv1";
 const sandbox = await Sandbox.create({
-  ...(token ? { token, teamId, projectId } : {}),
+  ...vercelBuildCredentials({ teamId, projectId }),
   image: "vercel/sandbox/universal:latest",
   timeout: 40 * 60_000,
   persistent: false,
@@ -36,11 +33,13 @@ try {
   const toolchain = `${(await versions.stdout()).trim()}\nwasm32-wasip2\nwit-bindgen 0.60.0; wasi-clocks 0.3.1`;
   console.log(toolchain);
   const snapshot = await sandbox.snapshot({ expiration: 30 * 24 * 60 * 60_000 });
-  await writeFile(new URL("../vercel-sandbox.json", import.meta.url), JSON.stringify({
+  // Keep the previous working compiler until dependency priming succeeds.
+  await writeFile(new URL("../vercel-sandbox.pending.json", import.meta.url), JSON.stringify({
     teamId,
     projectId,
     snapshotId: snapshot.snapshotId,
     toolchain,
+    stage: "toolchain",
   }, null, 2) + "\n");
   console.log(`Toolchain snapshot: ${snapshot.snapshotId}`);
 } finally {

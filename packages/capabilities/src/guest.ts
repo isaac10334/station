@@ -9,6 +9,11 @@ export interface Theme {
 }
 export interface EditorSession {
   files(): Promise<Record<string, string>>;
+  /** Atomically read the opened asset's current source revision and files. */
+  snapshot(): Promise<{ revision: number; files: Record<string, string> }>;
+  /** Commit only against the read revision. Stale or revoked writes reject;
+   * authority remains bound to this session's opened asset. */
+  editIfCurrent(path: string, source: string, expectedRevision: number): Promise<{ revision: number }>;
   edit(path: string, source: string): Promise<void>;
   select(path: string): Promise<void>;
   remove(path: string): Promise<void>;

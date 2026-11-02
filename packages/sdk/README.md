@@ -12,6 +12,13 @@ await channel.set("src/main.ts");
 
 Channels and child definitions must be declared in the owner's package manifest. Editor services are restricted to the opened asset. No host DOM, storage, scope, or provider values cross the connection.
 
+Editor sessions additionally expose `snapshot()` and
+`editIfCurrent(path, source, expectedRevision)`. Read a source revision with its
+files, preserve a local draft, then save against that revision. Concurrent edits
+reject instead of overwriting newer source. These additive methods retain the
+same opened-asset grant, task checks and revocation as the existing editor API;
+older hosts without them are incompatible with clients requiring checked writes.
+
 This is an independently buildable npm workspace package, not a published release.
 From the repository root, `bun run build:packages` builds its public contract dependency
 and JavaScript/declarations. `bun pm pack` from this directory creates a tarball;

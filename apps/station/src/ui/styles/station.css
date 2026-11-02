@@ -73,10 +73,17 @@
   min-height: 0;
 }
 .station-presentation .dash-widget[class*="widget-tone-"] .dash-widget-head {
-  padding: 6px 8px;
+  padding: 6px 12px;
   min-height: 40px;
-  background: transparent;
+  gap: 8px;
+  border-bottom: 1px solid var(--widget-edge);
+  background: color-mix(in srgb, var(--frame) 65%, transparent);
 }
+.station-presentation .dash-widget > .widget-flip > .widget-front > .widget-header .widget-header-heading { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+/* Inspection is temporary presentation feedback, including the protected root. */
+[data-widget-instance][data-highlighted] { outline: 2px solid var(--focus-ring); outline-offset: -3px; }
+.widget-settings fieldset { margin: 0; }
+.widget-settings > nav { align-items: center; }
 .station-presentation .dash-widget[class*="widget-tone-"] .dash-widget-head[data-title-hidden] {
   min-height: 32px;
   padding: 4px 8px;

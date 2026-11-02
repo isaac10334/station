@@ -7,7 +7,8 @@ through `@station/ui`.
 
 From the repository root: `bun run dev:site` (port 3002) and `bun run build:site`.
 The output is `apps/site/dist`. The browser resolves the fixed `canary` GitHub tag
-on each page load and validates the Windows installer URL. It never uses the
+on each page load and validates the self-contained Windows `.exe` installer URL.
+Users run that one file; they do not need to extract a ZIP. It never uses the
 stable-only `releases/latest` endpoint. Once resolved, it downloads the immutable
 archived build so replacing the channel cannot interrupt that download. The known fixed canary asset is the fallback
 when GitHub is rate-limited or offline. Publishing new canary assets still depends

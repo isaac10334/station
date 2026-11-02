@@ -21,6 +21,7 @@ import { createBrowserService } from "./browser-service";
 import { createBrowserHttp } from "./browser-http";
 import { nativeBrowserDriver } from "./browser-native";
 import { desktopProfile } from "./profile";
+import { registerWindowsCli } from "./windows-cli";
 import { createNativeShortcuts, createShortcutHttp } from "./shortcut-service";
 import { createLauncher, createLauncherHttp } from "./launcher-service";
 import { createControlBroker } from "../server/control-broker";
@@ -94,6 +95,7 @@ function cleanup() {
   return shutdown;
 }
 const updates = createDesktopUpdates(Updater, {
+  enabled: profileSettings.updatesEnabled === true,
   async confirm() {
     const { response } = await Utils.showMessageBox({
       title: "Restart Station",
@@ -362,6 +364,17 @@ Electrobun.events.on("application-menu-clicked", (event) => {
   void action(event.data.action);
 });
 updates.subscribe(refreshMenu);
+// Electrobun has build hooks, not an installed-user hook. Register only after a
+// real installed app starts successfully; dev/checkout bundles cannot claim PATH.
+void registerWindowsCli({
+  platform: process.platform,
+  channel: BuildConfig.getSync().channel,
+  development: profileSettings.development === true,
+  acceptance: profileSettings.acceptance === true,
+  executable: process.execPath,
+  localAppData: process.env.LOCALAPPDATA,
+  resources,
+}).catch(error => console.error("Station CLI registration:", error));
 await updates.initialize();
 refreshMenu();
 if (profileSettings.updatesEnabled === true) {

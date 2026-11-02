@@ -272,6 +272,23 @@ live account pairing acceptance.
 
 ### Settings and slot inspection (2026-10-19)
 
+Toolbar and grid refresh (2026-10-27): the main toolbar search opens the complete
+command palette; Notifications and the dedicated palette/inspector shortcuts are
+removed from that toolbar. Search shares the Asset browser's centered width.
+Widget settings group appearance and layout controls, retain a return link when
+inspecting a parent, and briefly outline the selected instance without persisting
+that highlight. Parent navigation does not reuse the original child's source or
+flip callbacks.
+
+New main tabs create an ordinary `main-surface` instance, labelled Workspace grid,
+with its own row-grid container. Add/arrange controls use the existing dock graph;
+grid insertion preserves owned rows across saves and reloads. Existing Overview
+and saved Main surface placements remain compatible. Layouts expose their shared
+add-slot control. Snake, Weather and Local time are retired from the creation
+catalog and default-child picker; their wire IDs, saved instances and source
+recipes remain readable for compatibility. This does not implement authored
+replacements for those examples.
+
 Widget settings show location links to their parent and slot. The slot settings
 surface owns split and contents controls; appearance and behavior stay on the
 widget. Slots remain graph nodes, not duplicated widget instances. The hierarchy

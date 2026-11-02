@@ -22,6 +22,7 @@ artifacts/
 .env
 .cottontail-tmp/
 .desktop-test/
+.desktop-local/
 
 apps/station/src/generated/web-tools.ts
 packages/sdk/dist/
@@ -36,3 +37,5 @@ apps/station/.runtime/
 !/artifacts/
 /artifacts/*
 !/artifacts/loop-kit/
+/apps/station/vercel-sandbox.pending.json
+/apps/station/vercel-sandbox.*.tmp

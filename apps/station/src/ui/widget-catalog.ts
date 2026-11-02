@@ -1,4 +1,4 @@
-import { BUILTIN_WIDGET_DEFINITIONS, builtinWidgetAssets, isBuiltinWidgetAsset, parseWidgetRecipe } from "../core/widget-definitions";
+import { BUILTIN_WIDGET_DEFINITIONS, RETIRED_WIDGETS, builtinWidgetAssets, isBuiltinWidgetAsset, parseWidgetRecipe } from "../core/widget-definitions";
 import {
   Activity,
   Clock3,
@@ -69,8 +69,8 @@ export function widgetDefinitions(
       assetId: `builtin:${widget}`,
       renderer: item.renderer as "react" | "layout",
       provider: "builtin" as const,
-      creation: widget === "desktop-shell" ? "contextual" as const : "menu" as const,
-      create: { kind: "widget" as const, widget: widget as WidgetId },
+      creation: widget === "desktop-shell" || RETIRED_WIDGETS.includes(widget as WidgetId) ? "contextual" as const : "menu" as const,
+      create: RETIRED_WIDGETS.includes(widget as WidgetId) ? undefined : { kind: "widget" as const, widget: widget as WidgetId },
     })),
     ...assets.filter((asset): asset is DataAsset => asset.kind === "widget-definition").flatMap((asset): WidgetDefinition[] => {
       try {

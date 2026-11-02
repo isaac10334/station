@@ -56,6 +56,10 @@ test("retained SDK editor handles recheck resource viewer policy on edit/remove/
   );
   try {
     const handle = await connection.bindings.acquire(EDITOR_SESSION, "1.0.0");
+    const initial = handle.methods.snapshot() as { revision: number; files: Record<string, string> };
+    expect(initial.files["theme.json"]).toBe(asset.files["theme.json"]);
+    expect(handle.methods.editIfCurrent("theme.json", initial.files["theme.json"], initial.revision)).toEqual({ revision: initial.revision + 1 });
+    expect(() => handle.methods.editIfCurrent("theme.json", "{}", initial.revision)).toThrow("Stale asset revision");
     store.setSourceAccess(store.active().id, false, [id]);
     const before = store
       .active()
@@ -67,6 +71,8 @@ test("retained SDK editor handles recheck resource viewer policy on edit/remove/
     expect(() => handle.methods.rename("theme.json", "other.json")).toThrow(
       "viewing only",
     );
+    expect(() => handle.methods.editIfCurrent("theme.json", "{}", before)).toThrow("viewing only");
+    expect((handle.methods.snapshot() as { revision: number }).revision).toBe(before);
     expect(Object.keys(handle.methods.files() as object)).toContain(
       "theme.json",
     );
@@ -78,6 +84,8 @@ test("retained SDK editor handles recheck resource viewer policy on edit/remove/
       handle.methods.edit("theme.json", asset.files!["theme.json"]),
     ).not.toThrow();
     handle.release();
+    expect(() => handle.methods.snapshot()).toThrow();
+    expect(() => handle.methods.editIfCurrent("theme.json", "{}", before)).toThrow();
   } finally {
     connection.dispose();
     editorSessions.delete(owner.id);

@@ -45,6 +45,6 @@ export function LayoutWidget({
     }}>
       <TabsList aria-label={label}>{pages.map(page => <TabsTab key={page.id} value={page.id} count={page.count} disabled={page.disabled}>{page.title}</TabsTab>)}</TabsList>
       {pages.some(page => page.content !== undefined) && <TabsPanels animateHeight={false}>{pages.map(page => <TabsPanel key={page.id} value={page.id} keepMounted>{page.content}</TabsPanel>)}</TabsPanels>}
-    </Tabs> : ownerId ? <DockOwnedLayout ownerId={ownerId} /> : children}
+    </Tabs> : ownerId ? <DockOwnedLayout ownerId={ownerId} controls /> : children}
   </div>;
 }

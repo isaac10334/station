@@ -42,7 +42,6 @@
     --radius-4xl: 2rem;
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --ease-out: cubic-bezier(0, 0, 0.2, 1);
-    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
     --animate-spin: spin 1s linear infinite;
     --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     --default-transition-duration: 150ms;
@@ -6283,34 +6282,27 @@ body {
   background: var(--frame);
   border: 0;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 .app .dock-search-button {
   display: inline-flex;
-  flex: none;
+  width: 100%;
   white-space: nowrap;
   align-items: center;
   gap: 8px;
-  height: 28px;
-  min-width: 140px;
+  height: 32px;
+  min-width: 0;
   padding: 0 10px;
   border: 1px solid var(--line-2);
   border-radius: 6px;
-  background: var(--frame);
+  background: var(--raised);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in srgb, var(--raised) 94%, var(--fg) 6%);
+  }
   color: var(--fg-2);
-  font-size: 12px;
+  font-size: 13px;
 }
 @media (min-width: 721px) and (max-width: 1100px) {
   .app .dock-shell-toolbar .dock-mobile-secondary {
-    display: none;
-  }
-  .app .dock-search-button {
-    min-width: 28px;
-    width: 28px;
-    padding: 0 6px;
-  }
-  .app .dock-search-button span {
     display: none;
   }
 }
@@ -6426,21 +6418,30 @@ body {
   .app .app-sidebar-dock {
     display: none;
   }
+  .app .dock-shell-toolbar > .content-toolbar {
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    gap: 6px;
+  }
+  .app .dock-shell-toolbar .content-toolbar-center {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .app .dock-shell-toolbar .content-toolbar-right {
+    grid-column: 2;
+    grid-row: 1;
+  }
   .app .dock-search-button {
-    min-width: 28px;
-    width: 28px;
     overflow: hidden;
-    white-space: nowrap;
-    padding: 0 6px;
+    padding-inline: 8px;
   }
   .app .dock-search-button span {
-    display: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .app .dock-shell-toolbar {
-    padding-inline: 6px;
+    height: auto;
+    padding: 6px;
     gap: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
   .app .dock-shell-toolbar .icon-button {
     flex: none;

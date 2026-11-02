@@ -2,6 +2,24 @@ import { expect, test } from "bun:test";
 import { createDockLayout, descendants, migrateDock, panelSlot, reduceDock, validateDock, type Command, type DockLayout } from "../src/core/docking";
 
 const dashboard = { surface: "dashboard", intent: "append" } as const;
+
+test("workspace grid pages own independent persistent rows and movable children", () => {
+  let dock = createDockLayout([]);
+  for (const id of ["page-a", "page-b"]) dock = apply(dock, { type: "createWidget", widget: "main-surface", id, target: { surface: "main", intent: "tab" } });
+  expect(dock.containers["page-a"]).toMatchObject({ kind: "grid", cells: [] });
+  expect(dock.containers["page-b"]).toMatchObject({ kind: "grid", cells: [] });
+  dock = apply(dock, { type: "createWidget", widget: "note", id: "note-a", target: { surface: "main", ownerId: "page-a", intent: "append" } });
+  dock = apply(dock, { type: "createWidget", widget: "stack", id: "nested", target: { surface: "main", ownerId: "page-a", intent: "append" } });
+  expect(descendants(dock, "page-a")).toEqual(["note-a", "nested"]);
+  expect(descendants(dock, "page-b")).toEqual([]);
+  dock = migrateDock(JSON.parse(JSON.stringify(dock)));
+  expect(validateDock(dock)).toBeNull();
+  expect(dock.containers["page-a"].kind).toBe("grid");
+  dock = apply(dock, { type: "move", panelId: "note-a", target: { surface: "main", ownerId: "page-b", intent: "append" } });
+  expect(panelSlot(dock, "note-a")?.target.ownerId).toBe("page-b");
+  expect(descendants(dock, "page-a")).toEqual(["nested"]);
+  expect(validateDock(dock)).toBeNull();
+});
 function apply(layout: DockLayout, command: Command) {
   const result = reduceDock(layout, command);
   if (!result.ok) throw new Error(result.reason);

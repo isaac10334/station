@@ -4,9 +4,10 @@ The Windows x64 app uses pinned Electrobun 2.0.3-beta.26, bundled Bun, and syste
 Its app-local Windows wrapper includes the reproducible [browser policy patch](native-browser.md).
 The postBuild hook also updates Bun 1.4's existing named icon group; adding only
 Hutch's numeric group leaves Windows selecting Bun's original branding.
-Download the Windows setup ZIP from the public
-[canary release](https://github.com/isaac10334/station/releases/tag/canary), extract
-all its files into one folder, then run `Station-Setup-canary.exe`.
+Download and run the self-contained Windows installer from the public
+[canary release](https://github.com/isaac10334/station/releases/tag/canary).
+The website downloads `canary-win-x64-Station-Setup-canary.exe`; no extraction
+or companion files are needed. The setup ZIP remains available for compatibility.
 It installs independently of this checkout; Bun and Rust are not prerequisites.
 The prototype is unsigned, so Windows may ask you to allow the installer.
 
@@ -38,6 +39,49 @@ downloading, ready and restarting, and restart failures show a recoverable dialo
 The marketing site deploys independently through GitHub Pages on site changes
 and successful canary publication. Its download starts with the fixed canary URL
 and resolves the channel's immutable installer when GitHub's API is available.
+
+## Canary release checklist
+
+Use this checklist for each candidate. Dated product acceptance is evidence for
+its recorded source and target, not an automatic pass for a later build.
+
+- [ ] Identify the exact source commit and review all included working changes.
+  Exclude credentials, local logs, scratch output and developer package links.
+  Run `bun run repo link status --json`; production must use portable artifacts.
+- [ ] Run `bun install --frozen-lockfile`, `bun run check`, `bun run typecheck`,
+  `bun run check:packages`, `bun run test`, and `bun run build`. Run
+  `bun run build:component` for Rust/WIT/bindings/Component changes. Serialize
+  builds that write shared generated resources.
+- [ ] Check the affected product flows in a fresh production browser tab. For
+  native changes, record the exact installed identity, executable and origin;
+  preserve normal user sessions and profiles. Keep unverified behavior explicit.
+- [ ] Push the candidate branch and dispatch the **Station canary** workflow
+  with that exact ref and `publish_canary=true` when publication is authorized:
+  `gh workflow run canary.yml --ref <candidate-branch> -f publish_canary=true`.
+  Dispatch without this input for verification only. A push to `main` publishes
+  automatically; avoid triggering both routes for the same candidate.
+- [ ] Wait for Windows CI to pass: clean dependency install, policy, typecheck,
+  packed consumers, tests, desktop build, native browser probe and release gate.
+  The installer must run alone from a clean directory. Verify installed frontend,
+  worker and translator bytes, authenticated renderer, native lifecycle and
+  previous-channel update preparation. This does not prove A→B update application.
+- [ ] Confirm the publish job archived `canary-RUN-ATTEMPT`, uploaded payloads
+  before update metadata, advanced the fixed channel tag to the source commit,
+  and retained old hash-named patches. Check public metadata version/hash and
+  the immutable archive and standalone installer downloads.
+- [ ] Confirm **Station website** deployment and its Windows download link.
+  Main-branch releases trigger it automatically; a branch release needs
+  `gh workflow run site.yml --ref <candidate-branch>` after publication.
+  Check both the API-resolved immutable installer and JavaScript-free fallback.
+- [ ] Record source commit, version, workflow/release links, verification and
+  remaining acceptance limits in the release handoff. Applying an update to a
+  user's running app remains a separate action.
+
+The standalone installer uses the pinned Electrobun extractor's embedded-payload
+format: executable, metadata marker and JSON, archive marker, then the original
+Zstandard installer archive. `scripts/standalone-installer.ts` owns that adapter;
+`prepare:release` validates it before publication. The existing ZIP and updater
+archives retain their independent compatibility roles.
 
 ## Local development
 
@@ -72,6 +116,65 @@ Hutch automatically; a global `hutch` command is optional. Beta.26 prepared Hutc
 The native security wrapper additionally requires VS2022 C++ and CMake on build
 machines; installed users need only WebView2. `desktop:build` rebuilds the wrapper
 and installs it into the bundle through the postBuild hook.
+
+### Windows local daily-driver install/update
+
+```powershell
+bun run desktop:update           # build locally, Quit installed canary, replace it, launch
+bun run desktop:local-build      # build only; do not interrupt the installed app
+bun run desktop:install          # install the exact last local build (no rebuild)
+bun run desktop:status
+bun run desktop:uninstall        # Quit + native app-only uninstall; preserve saved data
+station                         # launch installed Station, or restore its existing window
+station status
+```
+
+These commands require Windows, Bun and the desktop build prerequisites above.
+`desktop:update` intentionally replaces the **normal canary** and preserves its
+workspace/profile; save active work first. Building finishes before the running
+app is asked to Quit. No uninstall is needed before replacement. The scripts
+never publish a release, delete user profiles, or kill processes by name. If Quit
+fails, the operation stops; opt into `-Force` only to terminate verified executable
+paths under that installation (unsaved work can be lost).
+
+Append `-Acceptance` to any of the `desktop:*` commands above to target the separate
+managed acceptance installation and port 43158; it registers `station-acceptance`,
+never `station`. `-Plan` prints the selected identity/actions without changing
+anything. The ordinary `desktop:build`/GitHub release path is unchanged.
+
+Local builds bake `localBuild: true` and disable runtime update checks and build-time
+release patch generation. They will **not** fetch or overwrite themselves from
+GitHub; run `desktop:update` again for new checkout changes. To return to public
+canary updates, install a normal published canary. This uses the real installer,
+not the runtime updater: no local feed server or A→B updater transaction is needed.
+Install verifies the build stamp, ZIP SHA-256, identity, and installed version/hash;
+stale or cross-profile artifacts fail before closing the app. Temporary extraction
+is removed on success and retained on failure for diagnosis under `.desktop-local`.
+
+On the first installed launch (Setup launches automatically), Station places its
+launcher under `%LOCALAPPDATA%/com.isaacharvey.station/cli` and registers that exact
+directory in the **user PATH**, preserving existing values. Open a new terminal
+for `station` to become available. No global Bun or checkout is required to run it.
+Checkout/dev builds do not register it. `station` offers launch/status/help, not
+workspace control or a build/update command. Windows can restrict foreground focus.
+The script uninstall also removes its matching CLI registration; uninstalling via
+Windows Settings uses Electrobun's uninstaller, which cannot invoke custom cleanup
+and may leave a harmless CLI/PATH stub (launch then fails safely). Reinstallation
+repairs registration. Stable and canary share `station`; the last launched normal
+installation owns the command.
+
+**Pinned upstream behavior:** Electrobun beta.26 has no install hooks or CLI/PATH
+config. Its [Windows extractor](https://github.com/blackboardsh/electrobun/blob/v2.0.3-beta.26/package/src/extractor/main.zig)
+stages replacement and rollback, preserves data on app-only uninstall, and launches
+after setup. Run Setup with **no arguments** and all ZIP companion files intact:
+`--quiet` is an *uninstall* option, not silent installation. See
+[uninstalling](https://github.com/blackboardsh/electrobun/blob/v2.0.3-beta.26/docs/src/content/docs/electrobun/guides/uninstalling.mdx)
+and [build configuration](https://github.com/blackboardsh/electrobun/blob/v2.0.3-beta.26/package/src/config/ElectrobunConfig.ts).
+The [runtime updater](https://github.com/blackboardsh/electrobun/blob/v2.0.3-beta.26/package/src/sdks/main/core/Updater.ts)
+fetches a baked `release.baseUrl`; static local HTTP hosting is suitable and our
+isolated feed recipe below already supports it. [Bun fetch](https://bun.sh/docs/runtime/networking/fetch.md#protocol-support) also supports `file://`,
+but a complete file-feed updater transaction has not been verified. Installer
+replacement is deliberately simpler and does not claim updater A→B acceptance.
 
 ### Watching and agent testing
 
@@ -139,9 +242,16 @@ the draft and presentation available for correction.
 
 The pinned native API cannot explicitly restore an arbitrary foreign foreground
 application. Windows decides focus after hide/minimize; returning to a named
-external application is not guaranteed. Source-level lifecycle and HTTP denial
-tests pass; installed-native rendering, real hotkeys and focus restoration still
-require fresh acceptance of this change.
+external application is not guaranteed.
+
+The [October 27 candidate](canary-product-plan.md#current-evidence) records an
+installed capture/save/restore run and invocation from Notepad. That evidence
+does not cover later rebuilt candidates. Remaining acceptance covers tray-idle
+and sleep/resume, repeated launch/restart, two widget targets and changed hotkeys,
+OS registration conflicts, and removal or desk/source changes during capture.
+Check immediate typing, single save, retained drafts and graceful Quit using the
+exact installed executable/profile. A separate renderer would require its own
+authority/revision design; the current compact path uses the retained instance.
 
 ## User data and Component builds
 

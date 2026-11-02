@@ -4,6 +4,37 @@ Mission `STATION-ARCHITECTURE-CONSOLIDATION-2026-10-20-03`, started October 20, 
 One integrating owner; this is the living plan. The package foundation is complete;
 its baseline is summarized below and its current workflow is in [Loop Kit dependencies](loop-kit-packages.md).
 
+## Selected independent-package proof, 2026-10-28
+
+The user authorized implementation of one independently developed package, stronger
+WIT-backed development contracts and concrete Rust compiler reliability fixes.
+One integrating owner coordinated bounded compiler, WIT tooling and independent
+editor work. Owned changes preserve existing workspace/WIT IDs, grants, docking,
+installed profiles and unrelated edits. No registry publication or remote GitHub
+write is part of the acceptance evidence.
+
+Implemented: upstream source/build/change-request contracts and GitHub adapter;
+official WIT codegen plus actual TS7.1 content mapper; independent SVG editor source
+repository; opened-editor snapshot/CAS methods with denial checks; transactional
+Vercel snapshot setup and error/cancellation fixes. See the executable commands,
+dated evidence and remaining gates in [Independent package proof](independent-package-proof.md).
+
+## Proposed Loop development alpha, 2026-10-30
+
+The architecture/task pack is owned upstream at
+`C:/src/ilt/loop/docs/development-alpha/README.md`. It proposes one real async
+document Component across native/browser hosts, safe development replacement,
+and bounded cloud, documentation and Station adoption. The October 30 planning
+turn changed documentation only. Implementation begins with reviewed baselines
+of the current dirty checkouts and a toolchain feasibility gate; do not create
+worker worktrees from old HEAD and silently omit current untracked code.
+
+Keep this file as the integrated ledger, upstream specifications as the design
+owner, and Loop's engineering plan as its local evidence. Station retains its
+permissions, workspace state, desks/docking and product experience. Select one
+authored tool for adoption after its upstream runtime gate; no Station rewrite,
+account migration, marketplace launch or new desktop product is implied.
+
 ## Package foundation baseline (2026-10-19)
 
 Historical evidence, consolidated on 2026-10-27 from the separate package audit.

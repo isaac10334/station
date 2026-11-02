@@ -149,6 +149,9 @@ type Controller = DefinitionActions & {
   selectedWidgets: string[];
   selectWidgets: (ids: string[]) => void;
   selectWidget: (id: string | null, additive?: boolean) => void;
+  /** Reveal and briefly mark an instance without changing its saved appearance. */
+  highlightWidget: (id: string) => void;
+  highlightedWidget: string | null;
   selectingWidget: boolean;
   setSelectingWidget: (value: boolean) => void;
   activeFloating: string | null;
@@ -225,6 +228,18 @@ export function DockHost({
   const [focusPresentation, setFocusPresentation] = useState<"focus" | "quick-access">("focus");
   const focusPanel = (id: string | null, presentation: "focus" | "quick-access" = "focus") => { setFocusPresentation(presentation); setFocusedPanel(id); };
   const [selectedWidgets, selectWidgets] = useState<string[]>([]);
+  const [highlight, setHighlight] = useState<{ id: string } | null>(null);
+  const highlightedWidget = highlight?.id ?? null;
+  const highlightWidget = (id: string) => setHighlight({ id });
+  useEffect(() => {
+    if (!highlight) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void revealPresentation(highlight.id).then(() => {
+      if (!cancelled) timer = setTimeout(() => setHighlight(null), 1800);
+    });
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [highlight]);
   const selectedWidget = selectedWidgets.at(-1) ?? null;
   const selectWidget = (id: string | null, additive = false) => selectWidgets(previous => !id ? [] : additive ? previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id] : [id]);
   const [selectingWidget, setSelectingWidget] = useState(false);
@@ -382,7 +397,7 @@ export function DockHost({
   const context = useMemo<Controller>(
     () => ({
       definitions, definitionSources, onOpenDefinition, onForkDefinition,
-      controlsPanel, openWidgetControls, focusedPanel, focusPanel, selectedWidget, selectedWidgets, selectWidgets, selectWidget, selectingWidget, setSelectingWidget,
+      controlsPanel, openWidgetControls, focusedPanel, focusPanel, selectedWidget, selectedWidgets, selectWidgets, selectWidget, highlightWidget, highlightedWidget, selectingWidget, setSelectingWidget,
       activeFloating,
       raiseFloating,
       layout,
@@ -405,7 +420,7 @@ export function DockHost({
     }),
     [
       definitions, definitionSources, onOpenDefinition, onForkDefinition,
-      controlsPanel, focusedPanel, selectedWidgets, selectingWidget,
+      controlsPanel, focusedPanel, selectedWidgets, highlightedWidget, selectingWidget,
       activeFloating,
       layout,
       onCommand,
@@ -1250,10 +1265,10 @@ function TabRail({
           <button
             className="dock-action dock-add-tab"
             aria-label={ownerId && isLayoutPanel(layout.panels[ownerId]) && layout.panels[ownerId].childWidget === "browser-tab" ? "New browser tab" : `Add tab to ${ownerId ? "slot" : surface}`}
-            title="Add widget tab to this slot"
-            onClick={() =>
-              openCatalog({ surface, ownerId, nodeId: node.id, intent: "tab" })
-            }
+            title={!ownerId && surface === "main" ? "New workspace grid" : "Add widget tab to this slot"}
+            onClick={() => !ownerId && surface === "main"
+              ? command({ type: "createWidget", widget: "main-surface", target: { surface, nodeId: node.id, intent: "tab" } })
+              : openCatalog({ surface, ownerId, nodeId: node.id, intent: "tab" })}
           >
             <Plus size={15} />
           </button>

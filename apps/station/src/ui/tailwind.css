@@ -101,9 +101,9 @@
 .app .dock-shell-tabs, .app .dock-shell-tabs > [data-tabs-root] { height: 100%; min-width: 0; }
 .app .dock-shell-tabs .dock-stack-heading { height: 40px; }
 .app .dock-shell-split-label { display: flex; align-items: center; padding-inline: 16px; color: var(--fg-3); font-size: 12px; }
-.app .dock-shell-toolbar { background: var(--frame); border: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.app .dock-search-button { display: inline-flex; flex: none; white-space: nowrap; align-items: center; gap: 8px; height: 28px; min-width: 140px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--frame); color: var(--fg-2); font-size: 12px; }
-@media (min-width: 721px) and (max-width: 1100px) { .app .dock-shell-toolbar .dock-mobile-secondary { display: none; } .app .dock-search-button { min-width: 28px; width: 28px; padding: 0 6px; } .app .dock-search-button span { display: none; } }
+.app .dock-shell-toolbar { background: var(--frame); border: 0; min-width: 0; }
+.app .dock-search-button { display: inline-flex; width: 100%; white-space: nowrap; align-items: center; gap: 8px; height: 32px; min-width: 0; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 6px; background: color-mix(in srgb, var(--raised) 94%, var(--fg) 6%); color: var(--fg-2); font-size: 13px; }
+@media (min-width: 721px) and (max-width: 1100px) { .app .dock-shell-toolbar .dock-mobile-secondary { display: none; } }
 .app .dock-search-button:hover { background: var(--hover); color: var(--fg); }
 .app .dock-search-button:focus-visible, .app .dock-tab-close:focus-visible, .app .dock-action:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .app .dock-stack-heading { background: var(--dock-rail-surface); }
@@ -124,7 +124,7 @@
 .dock-float-header strong { font-size: 12px; text-transform: capitalize; }
 .dock-float-body { min-height: 0; flex: 1; overflow: auto; }
 .app .dock-stack-body, .dock-float-body { scrollbar-width: thin; scrollbar-color: var(--fg-4) transparent; }
-@media (max-width: 720px) { .app .app-sidebar-dock { display: none; } .app .dock-search-button { min-width: 28px; width: 28px; overflow: hidden; white-space: nowrap; padding: 0 6px; } .app .dock-search-button span { display: none; } .app .dock-shell-toolbar { padding-inline: 6px; gap: 2px; overflow-x: auto; scrollbar-width: none; } .app .dock-shell-toolbar .icon-button { flex: none; } .app .dock-shell-toolbar .dock-mobile-secondary { display: none; } }
+@media (max-width: 720px) { .app .app-sidebar-dock { display: none; } .app .dock-shell-toolbar > .content-toolbar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 6px; } .app .dock-shell-toolbar .content-toolbar-center { grid-column: 1 / -1; grid-row: 2; } .app .dock-shell-toolbar .content-toolbar-right { grid-column: 2; grid-row: 1; } .app .dock-search-button { overflow: hidden; padding-inline: 8px; } .app .dock-search-button span { overflow: hidden; text-overflow: ellipsis; } .app .dock-shell-toolbar { height: auto; padding: 6px; gap: 2px; } .app .dock-shell-toolbar .icon-button { flex: none; } .app .dock-shell-toolbar .dock-mobile-secondary { display: none; } }
 @media (prefers-reduced-motion: reduce) { .app .dock-stack-tab, .dock-mobile-tab { animation: none !important; transition: none !important; } }
 .app-sidebar [data-workspace-switcher] span { margin-left: 0; }
 .app .dock-surface { min-width: 0; min-height: 0; position: relative; }

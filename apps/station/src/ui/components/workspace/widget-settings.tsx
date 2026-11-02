@@ -45,6 +45,7 @@ import { Button } from "../ui/button";
 import { WidgetDefinitionPicker } from "./widget-definition-picker";
 import { WIDGET_CATALOG } from "../../widget-catalog";
 import { WidgetRemovalActions } from "./widget-removal-actions";
+import { RETIRED_WIDGETS } from "../../../core/widget-definitions";
 
 function SettingRow({
   label,
@@ -73,7 +74,7 @@ export function WidgetSettings(props: {
   onDismiss?: () => void;
   onOpenSource?: () => void;
 }) {
-  const { layout, panelTitle, selectWidget } = useDockController();
+  const { layout, panelTitle, selectWidget, highlightWidget } = useDockController();
   const [target, setTarget] = useState(props.panelId),
     [slotId, setSlotId] = useState<string>();
   const panel = layout.panels[target],
@@ -83,13 +84,16 @@ export function WidgetSettings(props: {
     setTarget(id);
     setSlotId(undefined);
     selectWidget(id);
+    highlightWidget(id);
   };
   return (
-    <div className="space-y-3">
+    <div className="widget-settings space-y-4">
+      <div className="border-b border-line pb-3"><h3 className="truncate text-sm font-semibold text-fg">{panel ? panelTitle(panel) : "Widget"}</h3><p className="mt-1 text-xs text-fg-3">Widget settings</p></div>
       <nav
         aria-label="Widget location"
         className="flex flex-wrap items-center gap-1 border-b border-line pb-2"
       >
+        {target !== props.panelId && layout.panels[props.panelId] && <Button size="sm" variant="ghost" onClick={() => inspect(props.panelId)}>← {panelTitle(layout.panels[props.panelId])}</Button>}
         {parent && (
           <Button size="sm" variant="ghost" onClick={() => inspect(parent)}>
             ↑ {panelTitle(layout.panels[parent])}
@@ -115,7 +119,7 @@ export function WidgetSettings(props: {
       {slotId ? (
         <SlotSettings nodeId={slotId} onInspectWidget={inspect} />
       ) : (
-        <WidgetSettingsContent key={target} {...props} panelId={target} />
+        <WidgetSettingsContent key={target} {...props} panelId={target} onFlip={target === props.panelId ? props.onFlip : undefined} onOpenSource={target === props.panelId ? props.onOpenSource : undefined} />
       )}
     </div>
   );
@@ -301,6 +305,8 @@ function WidgetSettingsContent({
           </div>
         )}
 
+      <fieldset className="min-w-0 space-y-3 rounded-lg border border-line p-3">
+      <legend className="px-1 text-xs font-medium text-fg-2">Appearance</legend>
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-fg-2">Display name</span>
@@ -412,8 +418,10 @@ function WidgetSettingsContent({
         </SettingRow>
       )}
 
+      </fieldset>
       {layoutPanel && (
-        <>
+        <fieldset className="min-w-0 space-y-3 rounded-lg border border-line p-3">
+          <legend className="px-1 text-xs font-medium text-fg-2">Layout and children</legend>
           <SettingRow label="Arrangement">
             <ToggleGroup
               value={[
@@ -475,7 +483,7 @@ function WidgetSettingsContent({
               emptyLabel="Choose each time"
 
               items={Object.entries(WIDGET_CATALOG)
-                .filter(([id]) => !["app-shell", "desktop-shell"].includes(id))
+                .filter(([id]) => !["app-shell", "desktop-shell", ...RETIRED_WIDGETS].includes(id))
                 .map(([id, item]) => ({
                   ...item,
                   id: `builtin:${id}`,
@@ -524,7 +532,7 @@ function WidgetSettingsContent({
               </IconAction>
             </div>
           </SettingRow>
-        </>
+        </fieldset>
       )}
 
       {!panel.ownerId && (

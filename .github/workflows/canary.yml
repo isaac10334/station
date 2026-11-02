@@ -45,7 +45,11 @@ jobs:
         run: |
           $env:ELECTROBUN_INSTALLER_UI_AUTOCLOSE = '1'
           $env:STATION_BROWSER_VERIFY = '1'
-          $installer = Join-Path $pwd 'apps/station/build/canary-win-x64/Station-Setup-canary.exe'
+          # Run only the public self-contained EXE, with no adjacent payloads.
+          $installerDirectory = Join-Path $env:RUNNER_TEMP 'station-standalone-installer'
+          New-Item -ItemType Directory -Path $installerDirectory -Force | Out-Null
+          $installer = Join-Path $installerDirectory 'Station-Setup-canary.exe'
+          Copy-Item 'apps/station/artifacts/canary-win-x64-Station-Setup-canary.exe' $installer
           $installation = Start-Process -FilePath $installer -PassThru -WindowStyle Hidden
           # The installer launches Station; PowerShell -Wait also waits for that
           # child app. Wait only for the installer process itself.

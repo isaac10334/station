@@ -311,6 +311,29 @@ function contributionBindings(
           throw new Error("Opened-asset binding unavailable");
         return {
           methods: {
+            snapshot: () => {
+              live();
+              if (installation.authorizationTaskId) {
+                const control = deps.taskControl!();
+                const result = control.executeFor(control.contextForTask(installation.authorizationTaskId), { method: "asset.read", params: { assetId: session.asset.id } }).result;
+                return { revision: result.revision, files: result.files };
+              }
+              const asset = deps.store.active().assets.find(asset => asset.id === session.asset.id);
+              if (!asset) throw new Error("Opened asset missing");
+              return { revision: asset.revision, files: { ...assetFiles(asset) } };
+            },
+            editIfCurrent: (path: unknown, source: unknown, expectedRevision: unknown) => {
+              live();
+              const revision = z.number().int().nonnegative().parse(expectedRevision);
+              const patch = { [z.string().parse(path)]: z.string().max(1024 * 1024).parse(source) };
+              if (installation.authorizationTaskId) {
+                const control = deps.taskControl!();
+                control.executeFor(control.contextForTask(installation.authorizationTaskId), { method: "asset.files.patch", version: control.version(), params: { assetId: session.asset.id, expectedAssetRevision: revision, patch } });
+              } else {
+                deps.store.patchFiles(session.asset.id, revision, patch);
+              }
+              return { revision: revision + 1 };
+            },
             files: () => {
               live();
               if (installation.authorizationTaskId) {

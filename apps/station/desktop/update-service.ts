@@ -33,6 +33,8 @@ export interface DesktopUpdater {
 export function createDesktopUpdates(
   updater: DesktopUpdater,
   options: {
+    /** Baked install policy: disabled installs cannot check even from native menus. */
+    enabled?: boolean;
     confirm(): Promise<boolean>;
     ready(): void;
     handoff(): void;
@@ -89,7 +91,8 @@ export function createDesktopUpdates(
         set({
           ...unsupportedUpdates,
           version: local.version,
-          ...(local.channel === "canary"
+          ...(options.enabled === false ? { message: "Updates are disabled for this installation. Reinstall a local build to update." } : {}),
+          ...(local.channel === "canary" && options.enabled !== false
             ? {
                 phase: "idle" as const,
                 message: "Updates download automatically. Restart when ready.",
@@ -103,6 +106,7 @@ export function createDesktopUpdates(
     async check() {
       if (
         disposed ||
+        options.enabled === false ||
         busy ||
         state.phase === "unsupported" ||
         state.phase === "ready"
@@ -153,6 +157,7 @@ export function createDesktopUpdates(
     async apply() {
       if (
         disposed ||
+        options.enabled === false ||
         busy ||
         state.phase !== "ready" ||
         !updater.updateInfo().updateReady

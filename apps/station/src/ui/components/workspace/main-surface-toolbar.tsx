@@ -6,6 +6,7 @@ import { DockToolbar } from "../../docking/react";
 import { TOOLBAR_TOOL_DEFINITIONS } from "../../../core/toolbar-tools";
 import type { ActionDescriptor } from "@loop-kit/ui";
 import { SemanticIcon } from "../../semantic-icons";
+import { ContentToolbar } from "../ui/content-toolbar";
 
 /** A protected internal definition renders host controls without serializing callbacks. */
 export function BuiltinToolbarTool({
@@ -71,8 +72,7 @@ export function MainSurfaceToolbar({
       role="toolbar"
       aria-label="Main surface tools"
     >
-      {history.map(render)}
-      <BuiltinToolbarTool id="search">
+      <ContentToolbar left={<div className="flex items-center gap-1">{history.map(render)}</div>} center={<BuiltinToolbarTool id="search">
         <ActionTooltip label="Search assets and panels (Ctrl+K)">
           <button
             type="button"
@@ -84,11 +84,11 @@ export function MainSurfaceToolbar({
             <span>Search workspace</span>
           </button>
         </ActionTooltip>
-      </BuiltinToolbarTool>
-      <span className="spacer" />
+      </BuiltinToolbarTool>} right={<div className="flex items-center gap-1">
       {actions.map(render)}
       <DockToolbar />
       {children}
+      </div>} />
     </div>
   );
 }

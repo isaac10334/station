@@ -27,11 +27,14 @@ export default {
     copy: {
       ...(!development ? { "dist/index.html": "station/index.html" } : {}),
       "dist/desktop": "station/runtime",
+      "desktop/station-cli.ps1": "station/runtime/station-cli.ps1",
     },
   },
   runtime: { exitOnLastWindowClosed: true },
   scripts: { postBuild: "./scripts/install-browser-native.ts" },
   release: {
+    // Local reinstall does not need release history or GitHub patch downloads.
+    generatePatch: process.env.STATION_DESKTOP_LOCAL !== "1",
     baseUrl:
       process.env.STATION_DESKTOP_ACCEPTANCE === "1"
         ? (testFeed ?? "http://127.0.0.1:49158")

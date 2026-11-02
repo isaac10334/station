@@ -13,7 +13,9 @@ await Bun.write("dist/desktop/profile.json", JSON.stringify({
   acceptance,
   development,
   ...(development ? { sourceDirectory: process.cwd() } : {}),
-  updatesEnabled: !development && (!acceptance || !!process.env.STATION_DESKTOP_TEST_FEED),
+  // Local installer replacements are explicit; never silently replace them from GitHub.
+  localBuild: process.env.STATION_DESKTOP_LOCAL === "1",
+  updatesEnabled: !development && process.env.STATION_DESKTOP_LOCAL !== "1" && (!acceptance || !!process.env.STATION_DESKTOP_TEST_FEED),
 }));
 const worker = await Bun.build({
   entrypoints: ["src/providers/component-worker.ts"],

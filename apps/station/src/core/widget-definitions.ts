@@ -159,7 +159,7 @@ export const BUILTIN_WIDGET_DEFINITIONS: Record<WidgetId, { title: string; descr
 
   "asset-browser": { title: "Asset browser", description: "Browse and organize shared workspace assets.", renderer: "react", preview: "Groups · assets · source" },
 
-  "main-surface": { title: "Main surface", description: "The current desk's main content and widget slots.", renderer: "layout", preview: "Main tabs · active content" },
+  "main-surface": { title: "Workspace grid", description: "A fresh page with a resizable grid of widgets. Add, arrange and nest your own workspace.", renderer: "layout", preview: "Fresh slate · widget grid · resizable rows" },
 
   "browser-tab": { title: "Browser tab", description: "A movable browser page with its own session grant.", renderer: "react", preview: "Address · browsing session" },
 
@@ -200,6 +200,10 @@ export function builtinWidgetAssets(): DataAsset[] {
 }
 
 export const isBuiltinWidgetAsset = (id: string) => id.startsWith("builtin:") && (WIDGET_IDS.includes(id.slice(8) as WidgetId) || PROGRAM_RECIPES.some(recipe => id === `builtin:program-${recipe.id}`));
+
+/** Retired examples remain readable for saved desks and source references, but
+ * are no longer offered as host widgets. Authored definitions remain available. */
+export const RETIRED_WIDGETS: readonly WidgetId[] = ["snake", "weather", "clock"];
 
 export function widgetDefinitionAsset(assets: readonly import("./asset-state").Asset[], id: string) {
 

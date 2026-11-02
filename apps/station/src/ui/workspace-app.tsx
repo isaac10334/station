@@ -88,7 +88,6 @@ import {
   workspaceSearchItems,
   type WorkspaceSearchItem,
 } from "./workspace-search";
-import { NotificationInbox } from "./components/ui/notification-inbox";
 import { UserMenu, UserMenuItem } from "./components/ui/user-menu";
 import { AccountSettings } from "./components/workspace/account-settings";
 import { Button } from "./components/ui/button";
@@ -624,12 +623,11 @@ export function WorkspaceApp({ ports }: { ports: ShellPorts }) {
         layout={workspace.dock}
         toolbar={
           <MainSurfaceToolbar
-            onSearch={() => openPalette("search: ")}
+            onSearch={() => openPalette("")}
             onAction={invoke}
             history={['back','forward'].map(id=>({action:actionById(id),disabled:!actionState(actionById(id),condition).enabled,secondary:true}))}
-            actions={['undo','redo','palette','inspector'].map(id=>({action:actionById(id),disabled:!actionState(actionById(id),condition).enabled,secondary:id==='undo'||id==='redo'}))}
+            actions={['undo','redo'].map(id=>({action:actionById(id),disabled:!actionState(actionById(id),condition).enabled,secondary:true}))}
           >
-            <BuiltinToolbarTool id="notifications"><NotificationInbox defaultItems={[]} /></BuiltinToolbarTool>
             <BuiltinToolbarTool id="widgets"><WidgetCatalog /></BuiltinToolbarTool>
             <BuiltinToolbarTool id="theme">{(store.desk().themeId ?? workspace.themeId) ? <IconAction label="Edit workspace theme" onClick={() => command({ type: "openAsset", assetId: (store.desk().themeId ?? workspace.themeId)! })}><Settings2 size={15} /></IconAction> : <ThemeToggle
               theme={state.app.theme}

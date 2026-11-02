@@ -1,4 +1,4 @@
-export const CANARY_INSTALLER = "canary-win-x64-Station-Setup-canary.zip";
+export const CANARY_INSTALLER = "canary-win-x64-Station-Setup-canary.exe";
 export const CANARY_BASE = "https://github.com/isaac10334/station/releases/download";
 
 /** Resolve a published immutable installer, retaining the fixed channel URL for older releases. */

@@ -152,9 +152,29 @@ acceptance targets. Browser success does not establish outside-app registration,
 foreground activation or native focus. Development executable evidence does not
 establish an installed canary update or A-to-B updater transaction.
 
-## Next slices
+## Contextual action contract proposal
 
-- [Policy and action foundation](prompts/shortcut-policy-and-actions.md): typed
-  conditions, contextual scopes, property-aware Data views and action adapters.
-- [Desktop capture launcher](prompts/desktop-capture-launcher.md): compact native
-  presentation, focus restoration, hidden-window reliability and native acceptance.
+Context conditions remain proposed. Start from the existing Loop action metadata,
+Station preference owner and command policy. A reusable condition AST should have
+a closed catalog for workspace/desk, focused widget/slot, editor/game/text-input
+focus, selection and action availability. Unknown conditions and script failures
+disable the binding with a visible reason. Visual/source editors edit the same AST.
+
+Script predicates need the existing bounded evaluator, redacted JSON context and
+boolean output. They receive no native handles, grants or action callbacks.
+Literal conditions do not require executable evaluation. Define precedence,
+conflicts, stale-context handling, reset/undo and `mod` aliases before replacing
+the current preference format.
+
+Keep widget-definition, live-instance and installed-contribution references distinct.
+Adapt them to shared actions; recheck installation/task/resource authority when
+invoking. A settings/Data view edits the authoritative preference through one
+controller and commit path. Recording a binding must not run its action. Package
+import cannot register OS-global shortcuts; native transports receive bounded
+binding IDs rather than scripts or approval flags.
+
+Acceptance covers context changes, revocation, stopped evaluators, unavailable
+actions, deterministic conflicts and recording without invocation. Test keyboard
+configuration, compatible asset drops, saved preferences and outside-app hotkeys
+in the appropriate browser/native targets. Compact capture lifecycle and its
+remaining tray/idle/sleep cases live in [Desktop](desktop.md#compact-shortcut-presentation-2026-10-27-source-change).

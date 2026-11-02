@@ -60,7 +60,7 @@ export function WidgetHeader({ heading, dragHandle, actions, children, hidden = 
  * Flipping only hides the front; child widgets and services remain mounted.
  */
 export function WidgetFrame({ panel, title, children, onOpenSource, header, back, integratedToolbar }: WidgetFrameProps) {
-  const { layout, editingWidgets, command, selectWidget, selectedWidgets, controlsPanel, openWidgetControls } = useDockController();
+  const { layout, editingWidgets, command, selectWidget, selectedWidgets, controlsPanel, openWidgetControls, highlightedWidget } = useDockController();
   const [flipped, setFlipped] = useState(false);
   const [backVisited, setBackVisited] = useState(false);
   const menuOpen = controlsPanel === panel.id;
@@ -97,7 +97,7 @@ export function WidgetFrame({ panel, title, children, onOpenSource, header, back
   const context: WidgetFrameContext = { panel, title, actions, dragHandle, settings, flip, close };
   return <Popover open={menuOpen} onOpenChange={setMenuOpen}><section ref={section} className={`dash-widget dash-widget-standard ${inToolbar ? "widget-toolbar" : ""} widget-tone-${panel.kind === "widget" ? panel.tone ?? "slate" : "slate"}`}
     id={`widget-instance:${panel.id}`} data-widget-instance={panel.id} data-widget-surface={hostSurface(layout, panel.id)} data-floating={floating || undefined} data-chrome={chrome} data-editing={editingWidgets && !flipped || undefined} data-selected={editingWidgets && selectedWidgets.includes(panel.id) || undefined}
-    aria-label={`${title} widget`}
+    data-highlighted={highlightedWidget === panel.id || undefined} aria-label={`${title} widget`}
 
   >
     {inToolbar && <WidgetDragHandle panelId={panel.id} title={title} context="toolbar" compact className="toolbar-widget-grip" />}
@@ -114,7 +114,6 @@ export function WidgetFrame({ panel, title, children, onOpenSource, header, back
       </div>
     </motion.div>
     <PopoverContent anchor={() => inToolbar ? section.current : section.current?.querySelector<HTMLElement>(".widget-settings-trigger") ?? section.current} container={section.current?.closest("dialog")} align="end" arrow={false} size="md" className="max-h-[min(80dvh,640px)] overflow-y-auto p-3" data-native-overlay>
-      <p className="truncate text-xs font-medium text-fg">{title}</p>
       <WidgetSettings panelId={panel.id} onDismiss={() => setMenuOpen(false)} onFlip={panel.flippable && !inToolbar ? flip : undefined} onOpenSource={onOpenSource} />
     </PopoverContent>
   </section></Popover>;

@@ -655,8 +655,7 @@ function insert(
   target: Target,
 ): Node | null {
   if (
-    target.surface === "dashboard" &&
-    !target.ownerId &&
+    ((target.surface === "dashboard" && !target.ownerId) || root?.kind === "grid") &&
     ((target.intent === "append" && !target.nodeId) ||
       (root?.kind === "grid" && target.intent === "tab"))
   ) {
@@ -1580,7 +1579,9 @@ function reduceDockCommand(
   const floating = { ...next.floating };
   delete floating[panel.id];
   const containers = { ...next.containers };
-  if (isLayoutPanel(panel) && !containers[panel.id]) containers[panel.id] = emptySlot();
+  if (isLayoutPanel(panel) && !containers[panel.id]) containers[panel.id] = panel.widget === "main-surface"
+    ? { kind: "grid", id: uid("rows"), cells: [] }
+    : emptySlot();
   next = {
     ...next,
     panels: { ...layout.panels, [panel.id]: panel },

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { canaryInstaller, CANARY_BASE, CANARY_INSTALLER } from "../apps/site/src/canary-release";
-import { validateCanaryManifest, prepareCanaryRelease } from "../scripts/prepare-canary-release";
+import { validateCanaryManifest, prepareCanaryRelease, installerZipName } from "../scripts/prepare-canary-release";
 import { verifySite } from "../scripts/verify-site";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -38,6 +38,7 @@ test("publication retains old full archives and points metadata at existing immu
   const directory = await mkdtemp(join(tmpdir(), "station-release-"));
   try {
     const metadataPath = join(directory, "canary-win-x64-update.json");
+    const setupExePath = join(directory, "Station-Setup-canary.exe");
     await Bun.write(metadataPath, JSON.stringify(manifest));
     await expect(prepareCanaryRelease(directory)).rejects.toThrow("missing");
     const archive = new Uint8Array(1_000_001);
@@ -45,13 +46,22 @@ test("publication retains old full archives and points metadata at existing immu
     const installer = new Uint8Array(1_000_001);
     installer.set([80, 75]);
     await Bun.write(join(directory, manifest.artifact.file), archive);
-    await Bun.write(join(directory, CANARY_INSTALLER), installer);
-    await prepareCanaryRelease(directory, manifest.version);
+    await Bun.write(join(directory, installerZipName), installer);
+    const executable = new Uint8Array(1_000_001); executable.set([77, 90]);
+    await Bun.write(setupExePath, executable);
+    await Bun.write(setupExePath.replace(".exe", ".tar.zst"), archive);
+    const setupMetadata = { identifier: manifest.identifier, channel: manifest.channel, name: "Station", hash: manifest.hash };
+    const setupMetadataPath = setupExePath.replace(".exe", ".metadata.json");
+    await Bun.write(setupMetadataPath, JSON.stringify({ ...setupMetadata, identifier: "com.isaacharvey.station.acceptance" }));
+    await expect(prepareCanaryRelease(directory, manifest.version, setupExePath)).rejects.toThrow("identity or hash");
+    await Bun.write(setupMetadataPath, JSON.stringify(setupMetadata));
+    await prepareCanaryRelease(directory, manifest.version, setupExePath);
+    expect((await Bun.file(join(directory, CANARY_INSTALLER)).arrayBuffer()).byteLength).toBeGreaterThan(2_000_000);
     const prepared = await Bun.file(metadataPath).json();
     expect(prepared.artifact.file).toBe("canary-win-x64-Station-abcd1234.tar.zst");
     expect(await Bun.file(join(directory, prepared.artifact.file)).arrayBuffer()).toEqual(archive.buffer);
     expect(await Bun.file(join(directory, manifest.artifact.file)).exists()).toBe(true);
-    await Bun.write(join(directory, CANARY_INSTALLER), "truncated");
+    await Bun.write(join(directory, installerZipName), "truncated");
     await expect(prepareCanaryRelease(directory)).rejects.toThrow("truncated");
   } finally {
     await rm(directory, { recursive: true, force: true });

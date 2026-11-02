@@ -54,16 +54,16 @@ Protected fixed tools use unlisted internal definitions. See
 ## Runtime experiment and exact blocker
 
 Loop Kit contains `experiments/station-p3-scripting`: a reusable no-import
-evaluator control and a custom async service/surface probe. Station's driver is
-`apps/station/scripts/probe-p3-scripting.ts`. Production runtime profiles and
-imports are unchanged.
+evaluator control and a custom async service/surface probe. The following records
+the October 16–18 investigation; its initial Station drivers were retired on
+October 30 after the lifecycle proof and production engine replaced them.
 
 Pinned compiler: componentize-qjs v0.4.5, source commit
 `e563c6d6ae50b087980414015663ca9c948c09bb`. The official Windows x64 archive SHA-256
 is `77b0dd43fe54f8090e26430486ae90eba0fd4dc2910d5cd7a5ce7eedd4fb2314`;
 the extracted executable SHA-256 is
 `7b4e240a2cd110306144c3a69badb9b05bf08a6e7b3eb841367c8f1dab8f508a`.
-The driver verifies the latter before executing it.
+The historical driver verified the latter before executing it.
 
 The required custom async import fails during compiler linking, with and without
 `--stub-wasi`:
@@ -94,16 +94,9 @@ compiler failure. Browser/native execution of the control is not established.
 For this compiler, custom async imports and surface events/disposal remain
 blocked. Resource budgets, cancellation and DOM/headless UI parity are unproven.
 
-To reproduce from the Station repository root after obtaining the verified
-official compiler:
-
-```powershell
-bun build apps/station/scripts/probe-p3-scripting.ts --target node --outfile "$env:TEMP/station-p3-probe.mjs"
-node "$env:TEMP/station-p3-probe.mjs" <absolute-componentize-qjs.exe> C:/src/ilt/loop/experiments/station-p3-scripting
-```
-
-The current probe exits nonzero and prints the successful control plus compiler
-failures. It neither downloads a compiler nor selects another execution engine.
+The retired probe exited nonzero after reporting the successful control and
+compiler failures. This history does not establish compatibility with newer
+compiler releases and does not authorize an automatic engine fallback.
 
 ## Selected compiler and bounded lifecycle proof
 
@@ -124,8 +117,8 @@ feature otherwise traps on delayed host calls in Polyengine 0.6.7 with
 The same-thread async executor passes with that feature disabled; cross-task
 wakeup behavior has not been validated.
 
-Station's `apps/station/scripts/probe-rquickjs-scripting.ts` and browser-worker
-entry use the same probe implementation and unchanged Polyengine 0.6.7. Actual
+Station's initial Node and browser-worker drivers used the same probe
+implementation and unchanged Polyengine 0.6.7. Actual
 bytes pass in Node/V8 and the in-app Chromium browser: transpiled TypeScript,
 delayed async service result `42`, ten changed-source runs, retained/fresh
 instance isolation, surface render/event/disposal, session Start/Stop and unwired
@@ -160,21 +153,24 @@ that source edits reject an existing engine before invocation. Reports include
 cold startup, edit-to-run and warm-run timings and zero-resource cleanup
 snapshots. Installed desktop acceptance has not been performed for this probe.
 
-The upstream experiment README contains reproduction commands and limitations;
-`componentize-qjs-fallback.md` separately retains the original compiler pins,
-reproduction and the unverified rebuild route using a fixed Wasmtime dependency.
-No automatic engine fallback or production grant/profile migration was added.
+The upstream experiment README owns the retained lifecycle reproduction commands
+and limitations. The compiler pins and failure above are dated evidence, not an
+active fallback implementation. No automatic engine fallback or production
+grant/profile migration was added.
 
-## Remaining agreed work
+## Investigation retirement
 
-Continue from the selected engine's proof into upstream named services and
-discoverable contracts; inline TypeScript and
-reviewed activation; portable WIT UI with JSX/direct/data-driven producers;
-Station DOM and independent recording adapters; service/data references; custom
-asset types, settings and package contributions; independent Navigation variants;
-and the complete agent-authored cockpit. Keep canvas/WebGPU experimental.
+On October 30, the five initial compatibility drivers were removed:
+`probe-p3-scripting.ts`, `probe-rquickjs-scripting.ts`,
+`probe-rquickjs-browser.ts`, `rquickjs-runtime-probe.ts` and
+`serve-rquickjs-probe.ts`, formerly under `apps/station/scripts`.
+They had no product, build, CI or test consumers; the rquickjs entrypoints only
+shared the retired probe implementation. Compiler pins, the async-link failure,
+the feature workaround and the original execution limits remain above.
 
-The distinction remains assets/source, immutable activation, saved instances,
-running services, widgets, contributions and explicit capability bindings.
-No service registry, new UI runtime, grants migration or namespace replacement
-has been silently implemented as part of the toolbar correction.
+Production still uses `prepare-scripting.ts` and the resolved Loop scripting
+engine. The owned-resource lifecycle drivers, `scripts/scripting-proof` fixtures
+and `tests/scripting-proof.test.ts` remain. Current contracts live in
+[programmable authoring](programmable-authoring.md); current gaps live in
+[the core review](core-systems-review.md). This retirement changes no runtime
+profile, installed state, grants or authored content.
