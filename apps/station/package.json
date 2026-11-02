@@ -14,7 +14,8 @@
     "desktop:prepare": "bunx electrobun prepare --env=canary",
     "desktop:build": "bun run build && bun scripts/prepare-desktop.ts && bun scripts/build-browser-native.ts && bunx electrobun build --env=canary",
     "desktop:dev": "bun scripts/dev-desktop.ts",
-    "prepare:web": "bun run --cwd ../.. build:packages && bun scripts/prepare-scripting.ts && bun scripts/prepare-web-tools.ts && bun run prepare:vectorcraft",
+    "prepare:compiler-resources": "bun scripts/prepare-web-tools.ts",
+    "prepare:web": "bun run --cwd ../.. build:packages && bun scripts/prepare-scripting.ts && bun run prepare:compiler-resources && bun run prepare:vectorcraft",
     "test": "bun test tests",
     "prepare:vectorcraft": "bun scripts/prepare-vectorcraft.ts"
   },

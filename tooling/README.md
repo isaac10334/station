@@ -5,6 +5,9 @@ Use `bun run repo context @station/sdk --json` before a focused package task.
 `affected --base HEAD~1` explain dependencies. `verify @station/sdk` builds and
 checks its dependency closure; `bun run verify` is the full release regression.
 Root `check` runs the architecture policy and rejection fixtures.
+It first builds public packages and generates the portable compiler-resource
+modules via `prepare:compiler-resources`, so a clean checkout needs no previously
+generated files. This preparation does not build the Windows scripting engine.
 
 `architecture.ts` is a reviewed source snapshot of Loop Kit's identically named
 tool. Keep independent CI installation: it imports pinned local TypeScript, never
